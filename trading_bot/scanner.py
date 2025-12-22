@@ -16,9 +16,11 @@ try:
     from alpaca.data.historical import StockHistoricalDataClient
     from alpaca.data.requests import StockBarsRequest
     from alpaca.data.timeframe import TimeFrame
+    from alpaca.data.enums import DataFeed
     ALPACA_DATA_AVAILABLE = True
 except ImportError:
     ALPACA_DATA_AVAILABLE = False
+
 
 try:
     import yfinance as yf
@@ -188,7 +190,8 @@ async def fetch_data_alpaca(tickers: List[str], api_key: str, secret_key: str) -
                 symbol_or_symbols=chunk,
                 timeframe=TimeFrame.Day,
                 start=start_date,
-                end=end_date
+                end=end_date,
+                feed=DataFeed.IEX
             )
             
             bars = client.get_stock_bars(request)
