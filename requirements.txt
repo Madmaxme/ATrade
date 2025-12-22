@@ -1,0 +1,26 @@
+# Core LangGraph/LangChain
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-google-genai>=0.0.1
+langchain-core>=0.3.0
+
+# MCP Integration
+langchain-mcp-adapters>=0.1.0
+mcp>=1.0.0
+
+# Alpaca Trading
+alpaca-py>=0.30.0
+alpaca-mcp-server>=1.0.0
+
+# Data Sources
+yfinance>=0.2.40
+pandas>=2.0.0
+lxml>=4.9.0
+requests>=2.31.0
+
+# Utilities
+python-dotenv>=1.0.0
+pytz>=2024.1
+
+# Optional: For better async
+aiohttp>=3.9.0
