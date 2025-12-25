@@ -17,11 +17,13 @@ class TradingConfig:
     # RISK MANAGEMENT (CRITICAL - DON'T CHANGE WITHOUT UNDERSTANDING)
     # =========================================================================
     
-    # Maximum percentage of portfolio per trade (e.g., 0.10 = 10%)
-    max_position_size_pct: float = 0.10
+    # Maximum percentage of portfolio per trade (e.g., 0.20 = 20%)
+    # Increased for "Sniper Strategy" since we only take 1 trade per day
+    max_position_size_pct: float = 0.20
     
     # Maximum number of concurrent positions
-    max_positions: int = 5
+    # STRICT LIMIT: One stock per day ("Daily Champion")
+    max_positions: int = 1
     
     # Stop loss percentage per trade (e.g., 0.02 = 2%)
     stop_loss_pct: float = 0.02
