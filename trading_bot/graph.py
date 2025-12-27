@@ -18,7 +18,6 @@ from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 from trading_bot.config import TradingConfig
 from trading_bot.tools import get_trading_tools
 from trading_bot.prompts import TRADER_SYSTEM_PROMPT
-from trading_bot.memory import memory_manager
 
 
 # =============================================================================
@@ -79,9 +78,6 @@ class TradingState(TypedDict):
     # Current action being taken
     current_action: Optional[str]
     
-    # Track closed trades for the daily reviewer
-    trades_today: List[dict]
-    
     # Error tracking
     last_error: Optional[str]
 
@@ -133,8 +129,6 @@ async def account_sync_node(state: TradingState) -> dict:
     """
     import os
     from alpaca.trading.client import TradingClient
-    from alpaca.trading.requests import GetOrdersRequest
-    from alpaca.trading.enums import OrderStatus
     
     api_key = os.getenv("ALPACA_API_KEY")
     secret_key = os.getenv("ALPACA_SECRET_KEY")
@@ -164,43 +158,11 @@ async def account_sync_node(state: TradingState) -> dict:
                 "order_id": ""
             })
             
-        # Get today's closed/filled orders for the reviewer
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        # Note: listing orders by date requires formatted request in newer SDKs, 
-        # but for simplicity we will get last 50 closed and filter in python if needed
-        # or just rely on the fact that we run this daily.
-        
-        request_params = GetOrdersRequest(
-            status=OrderStatus.CLOSED,
-            limit=10,
-            nested=True
-        )
-        closed_orders = client.get_orders(filter=request_params)
-        
-        # Filter for today (rudimentary check, assuming local time matches approx)
-        trades_today = []
-        for o in closed_orders:
-            # Check if filled_at is today
-            if o.filled_at and o.filled_at.strftime("%Y-%m-%d") == today_str:
-                trades_today.append({
-                    "symbol": o.symbol,
-                    "side": o.side,
-                    "qty": float(o.qty or 0),
-                    "entry_price": float(o.filled_avg_price or 0),
-                    "pnl": 0.0, # Alpaca orders don't store PnL directly, would need to calc
-                    "status": o.status
-                })
-
-        # Calculate rough PnL for closed trades (approximated)
-        # In a real system, we'd match buy/sell pairs or use account.equity change
-        # For now, we trust the daily_pnl from account matches these trades.
-
         return {
             "buying_power": float(account.buying_power),
             "portfolio_value": float(account.portfolio_value),
             "daily_pnl": float(account.equity) - float(account.last_equity),
             "positions": positions,
-            "trades_today": trades_today,
             "current_action": "synced_account"
         }
     except Exception as e:
@@ -219,10 +181,6 @@ async def agent_node(state: TradingState, trading_config: TradingConfig, model: 
     model_with_tools = model.bind_tools(tools)
     
     # Build context message
-    # Get Memory Context
-    active_rules = memory_manager.get_rules_text()
-    recent_history = memory_manager.get_recent_performance()
-
     context = f"""
 Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S ET')}
 Market Open: {state.get('is_market_open', False)}
@@ -239,16 +197,6 @@ Open Positions ({len(state.get('positions', []))}):
 
 New Signals ({len(state.get('signals', []))}):
 {_format_signals(state.get('signals', []))}
-
-=========================================
-🧠 AGENT MEMORY (LEARNED LESSONS)
-=========================================
-YOUR RULEBOOK (Evolved from experience):
-{active_rules}
-
-RECENT PERFORMANCE:
-{recent_history}
-=========================================
 
 Based on the above, decide what action to take. You can:
 1. Enter new positions (if signals are good and we have capacity)
