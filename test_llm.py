@@ -8,13 +8,15 @@ from langchain_core.tools import tool
 # Load env
 load_dotenv()
 
+from trading_bot.config import DEFAULT_CONFIG
+
 @tool
 def multiply(a: int, b: int) -> int:
     """Multiplies two numbers."""
     return a * b
 
 async def test_llm():
-    model_name = "gemini-3-pro-preview"
+    model_name = DEFAULT_CONFIG.llm_model
     print(f"Testing model: {model_name}...")
     
     try:

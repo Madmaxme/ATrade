@@ -106,7 +106,7 @@ class TradingConfig:
     # =========================================================================
     
     # Model to use for trading decisions
-    llm_model: str = "gemini-3-pro-preview"
+    llm_model: str = "gemini-3-flash-preview"
     
     # Temperature for LLM (lower = more consistent)
     llm_temperature: float = 0.1

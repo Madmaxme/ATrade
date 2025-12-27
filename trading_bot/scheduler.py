@@ -13,6 +13,7 @@ from langgraph.graph import StateGraph
 
 from trading_bot.config import TradingConfig
 from trading_bot.graph import TradingState
+from trading_bot.reviewer import run_daily_review
 
 
 class TradingScheduler:
@@ -130,6 +131,7 @@ class TradingScheduler:
             "perform_scan": True,  # Always scan on startup
             "current_action": None,
             "last_error": None,
+            "trades_today": [], # Track trades for the reviewer
         }
         
         thread_id = f"trading_{datetime.now().strftime('%Y%m%d')}"
@@ -180,6 +182,20 @@ class TradingScheduler:
             await asyncio.sleep(self.config.position_check_interval_seconds)
         
         print(f"\n📉 Market Closed")
+        
+        # Run Daily Review (The "Learning" Step)
+        if state.get("trades_today") or state.get("daily_pnl") != 0:
+            # Pass the last trade (Champion) if it exists
+            todays_trade = state["trades_today"][0] if state["trades_today"] else {}
+            
+            await run_daily_review(
+                self.config,
+                todays_trade,
+                state["daily_pnl"],
+                state
+            )
+        else:
+             print("   ℹ️  No activity to review today.")
     
     async def _wait_for_market(self):
         """Wait for market to open."""
