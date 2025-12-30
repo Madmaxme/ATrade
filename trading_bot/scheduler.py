@@ -132,15 +132,21 @@ class TradingScheduler:
             "last_error": None,
         }
         
-        thread_id = f"trading_{datetime.now().strftime('%Y%m%d')}"
-        config = {
-            "configurable": {"thread_id": thread_id},
-            "recursion_limit": 100
-        }
-        
         last_scan_time = None
         
         while self.is_market_open() and self.running:
+            # Generate a new thread_id for each cycle to ensure clean conversation history
+            # This prevents the context window (and token usage) from growing infinitely
+            thread_id = f"trading_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            config = {
+                "configurable": {"thread_id": thread_id},
+                "recursion_limit": 100
+            }
+
+            # Reset message history for this new cycle
+            # We only need current positions/signals (in state), not past chat logs
+            state["messages"] = []
+
             now = self._get_et_time()
             
             # Check if we should close all positions
