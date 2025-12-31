@@ -138,6 +138,8 @@ async def account_sync_node(state: TradingState) -> dict:
     # Simple direct client for sync
     client = TradingClient(api_key, secret_key, paper=True)
     
+    from trading_bot.config import DEFAULT_CONFIG
+    
     try:
         account = client.get_account()
         
@@ -147,14 +149,33 @@ async def account_sync_node(state: TradingState) -> dict:
         # Convert to list of dicts
         positions = []
         for p in alpaca_positions:
+            # Parse numbers safely
+            qty = float(p.qty)
+            entry = float(p.avg_entry_price)
+            current = float(p.current_price)
+            pl = float(p.unrealized_pl)
+            pl_pct = float(p.unrealized_plpc) * 100
+            
+            # Re-calculate stops based on strategy rules (since we don't store them externally)
+            # Long positions only for now
+            if p.side == 'long':
+                stop = entry * (1 - DEFAULT_CONFIG.stop_loss_pct)
+                target = entry * (1 + DEFAULT_CONFIG.take_profit_pct)
+            else:
+                stop = entry * (1 + DEFAULT_CONFIG.stop_loss_pct)
+                target = entry * (1 - DEFAULT_CONFIG.take_profit_pct)
+
             positions.append({
                 "symbol": p.symbol,
-                "side": p.side,  # 'long' or 'short'
-                "quantity": float(p.qty),
-                "entry_price": float(p.avg_entry_price),
+                "side": p.side,
+                "quantity": qty,
+                "entry_price": entry,
+                "current_price": current,
+                "unrealized_pl": pl,
+                "unrealized_pl_pct": pl_pct,
+                "stop_loss": stop,
+                "take_profit": target,
                 "entry_time": datetime.now(), # Placeholder
-                "stop_loss": 0.0, # Placeholder
-                "take_profit": 0.0, # Placeholder
                 "order_id": ""
             })
             
@@ -241,8 +262,10 @@ def _format_positions(positions: List[dict]) -> str:
     lines = []
     for p in positions:
         # p is a dict now
-        lines.append(f"  - {p['symbol']}: {p['quantity']} shares @ ${p['entry_price']:.2f} "
-                    f"(Stop: ${p['stop_loss']:.2f}, Target: ${p['take_profit']:.2f})")
+        lines.append(f"  - {p['symbol']} ({p['side']}): {p['quantity']} @ ${p['entry_price']:.2f} "
+                    f"| Curr: ${p['current_price']:.2f} "
+                    f"| P&L: ${p['unrealized_pl']:.2f} ({p['unrealized_pl_pct']:.2f}%) "
+                    f"| Stop: ${p['stop_loss']:.2f} | Target: ${p['take_profit']:.2f}")
     return "\n".join(lines)
 
 
