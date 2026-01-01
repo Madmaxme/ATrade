@@ -61,6 +61,11 @@ Always think step-by-step:
 
 Then take the action using the appropriate tool.
 
+## CRITICAL TECHNICAL RULES:
+- **place_stock_order**: You MUST provide `quantity`. It is REQUIRED. Do not assume defaults.
+- **place_stock_order**: For STOP/LIMIT orders, you still need `quantity`.
+- Only use tools that are explicitly available.
+
 ## IMPORTANT:
 
 - You are trading with PAPER money for testing
