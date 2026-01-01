@@ -116,6 +116,17 @@ class TradingScheduler:
         """Run the trading loop during market hours."""
         print(f"\n📈 Market is OPEN. Trading session active.")
         
+        # Capture starting equity for the day
+        start_equity = 0.0
+        try:
+            from alpaca.trading.client import TradingClient
+            client = TradingClient(self.config.alpaca_api_key, self.config.alpaca_secret_key, paper=self.config.paper_trading)
+            acct = client.get_account()
+            start_equity = float(acct.equity)
+            print(f"   💰 Starting Equity: ${start_equity:,.2f}")
+        except Exception as e:
+            print(f"   ⚠️ Could not fetch starting equity: {e}")
+        
         # Initial state
         state: TradingState = {
             "messages": [],
@@ -186,7 +197,70 @@ class TradingScheduler:
             await asyncio.sleep(self.config.position_check_interval_seconds)
         
         print(f"\n📉 Market Closed")
+        await self._generate_daily_report(start_equity)
     
+    async def _generate_daily_report(self, start_equity: float):
+        """Generate and save the daily trading report/journal."""
+        print("   📝 Generating Daily Journal...")
+        try:
+            from alpaca.trading.client import TradingClient
+            from alpaca.trading.requests import GetOrdersRequest
+            from alpaca.trading.enums import QueryOrderStatus
+            import os
+
+            client = TradingClient(self.config.alpaca_api_key, self.config.alpaca_secret_key, paper=self.config.paper_trading)
+            acct = client.get_account()
+            end_equity = float(acct.equity)
+            
+            # Get filled orders from today
+            today = datetime.now().date()
+            orders = client.get_orders(filter=GetOrdersRequest(
+                status=QueryOrderStatus.CLOSED,
+                limit=100,
+                after=datetime.combine(today, time.min)
+            ))
+            today_orders = [o for o in orders if o.filled_at and o.filled_at.date() == today]
+            
+            # Identify the "Champion" stock (the one we traded locally)
+            traded_symbols = set(o.symbol for o in today_orders)
+            champion = ", ".join(traded_symbols) if traded_symbols else "NONE (No Trades Taken)"
+            
+            pnl = end_equity - start_equity
+            pnl_pct = (pnl / start_equity) * 100 if start_equity > 0 else 0
+            
+            emoji = "🟢" if pnl >= 0 else "🔴"
+            
+            report = f"""
+================================================================================
+DATE: {today.strftime('%Y-%m-%d')} | {emoji} RESULT: ${pnl:+.2f} ({pnl_pct:+.2f}%)
+--------------------------------------------------------------------------------
+START EQUITY:   ${start_equity:,.2f}
+END EQUITY:     ${end_equity:,.2f}
+
+CHAMPION STOCK: {champion}
+
+TRADES EXECUTED:"""
+            
+            if not today_orders:
+                report += "\n(No trades executed today)"
+            else:
+                for o in reversed(today_orders): # Oldest first
+                    side = o.side.upper()
+                    price = float(o.filled_avg_price) if o.filled_avg_price else 0
+                    qty = o.qty
+                    report += f"\n- {o.filled_at.strftime('%H:%M')} {side} {o.symbol}: {qty} shares @ ${price:.2f}"
+
+            report += "\\n\\nNOTES:\\n(Auto-generated)\\n================================================================================\\n\\n"
+            
+            # Append to file
+            with open("daily_journal.txt", "a") as f:
+                f.write(report)
+                
+            print(f"   ✅ Journal saved to daily_journal.txt")
+            
+        except Exception as e:
+            print(f"   ❌ Failed to write daily journal: {e}")
+
     async def _wait_for_market(self):
         """Wait for market to open."""
         wait_seconds = self.time_until_market_open()
