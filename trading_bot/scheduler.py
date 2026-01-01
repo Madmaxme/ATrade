@@ -200,13 +200,17 @@ class TradingScheduler:
         await self._generate_daily_report(start_equity)
     
     async def _generate_daily_report(self, start_equity: float):
-        """Generate and save the daily trading report/journal."""
-        print("   📝 Generating Daily Journal...")
+        """Generate and save the daily trading report/journal AND structured memory."""
+        print("   📝 Generating Daily Journal & Updating Memory...")
         try:
             from alpaca.trading.client import TradingClient
             from alpaca.trading.requests import GetOrdersRequest
             from alpaca.trading.enums import QueryOrderStatus
+            from trading_bot.memory import TradingMemory, DailyEpisode
             import os
+
+            # Initialize Memory with persistent path
+            memory = TradingMemory(data_dir=self.config.data_dir)
 
             client = TradingClient(self.config.alpaca_api_key, self.config.alpaca_secret_key, paper=self.config.paper_trading)
             acct = client.get_account()
@@ -228,6 +232,7 @@ class TradingScheduler:
             pnl = end_equity - start_equity
             pnl_pct = (pnl / start_equity) * 100 if start_equity > 0 else 0
             
+            # --- 1. WRITE TO TEXT JOURNAL (HUMAN READABLE) ---
             emoji = "🟢" if pnl >= 0 else "🔴"
             
             report = f"""
@@ -252,14 +257,38 @@ TRADES EXECUTED:"""
 
             report += "\\n\\nNOTES:\\n(Auto-generated)\\n================================================================================\\n\\n"
             
-            # Append to file
-            with open("daily_journal.txt", "a") as f:
+            # Append to file in persistent directory
+            journal_path = os.path.join(self.config.data_dir, "daily_journal.txt")
+            with open(journal_path, "a") as f:
                 f.write(report)
                 
-            print(f"   ✅ Journal saved to daily_journal.txt")
+            print(f"   ✅ Journal saved to {journal_path}")
+
+            # --- 2. SAVE TO STRUCTURED MEMORY (AI READABLE) ---
+            # Capture the config used today (simplified)
+            config_snapshot = {
+                "max_position_size": self.config.max_position_size_pct,
+                "stop_loss": self.config.stop_loss_pct,
+                "take_profit": self.config.take_profit_pct,
+                "strategy": "daily_champion" 
+            }
+
+            episode = DailyEpisode(
+                date=today.strftime('%Y-%m-%d'),
+                market_sentiment="unknown", # We will implement market sentiment analysis later
+                config_used=config_snapshot,
+                champion_stock=champion,
+                start_equity=start_equity,
+                end_equity=end_equity,
+                pnl=pnl,
+                pnl_pct=pnl_pct,
+                win=(pnl > 0)
+            )
+            
+            memory.record_episode(episode)
             
         except Exception as e:
-            print(f"   ❌ Failed to write daily journal: {e}")
+            print(f"   ❌ Failed to save daily report/memory: {e}")
 
     async def _wait_for_market(self):
         """Wait for market to open."""

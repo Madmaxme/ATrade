@@ -14,6 +14,20 @@ class TradingConfig:
     """Configuration for the trading bot."""
     
     # =========================================================================
+    # SYSTEM PATHS
+    # =========================================================================
+    
+    # Directory for persistent data (memory, logs, journals)
+    # Defaults to current directory if not set (e.g. locally)
+    # On Railway, set this to /app/data
+    @property
+    def data_dir(self) -> str:
+        d = os.getenv("DATA_DIR", ".")
+        if not os.path.exists(d):
+            os.makedirs(d, exist_ok=True)
+        return d
+    
+    # =========================================================================
     # RISK MANAGEMENT (CRITICAL - DON'T CHANGE WITHOUT UNDERSTANDING)
     # =========================================================================
     
