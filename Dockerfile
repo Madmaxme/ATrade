@@ -45,8 +45,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application code
 COPY --chown=trader:trader . .
 
-# Create logs directory
+# Create logs and data directories with correct permissions
 RUN mkdir -p logs && chown trader:trader logs
+RUN mkdir -p /app/data && chown -R trader:trader /app/data
 
 # Switch to non-root user
 USER trader
@@ -54,6 +55,7 @@ USER trader
 # Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV DATA_DIR=/app/data
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
