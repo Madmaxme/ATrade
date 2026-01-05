@@ -44,8 +44,8 @@ class TradingConfig:
     max_position_size_pct: float = 0.20
     
     # Maximum number of concurrent positions
-    # STRICT LIMIT: One stock per day ("Daily Champion")
-    max_positions: int = 1
+    # LIMIT: Top 3 opportunities ("The Podium")
+    max_positions: int = 3
     
     # Stop loss percentage per trade (e.g., 0.01 = 1%)
     stop_loss_pct: float = 0.01
