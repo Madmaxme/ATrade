@@ -13,7 +13,7 @@ from typing import List
 class TradingConfig:
     """Configuration for the trading bot."""
     
-    def get_now_et(self) -> datetime:
+    def get_now_et(self):
         """Get current time in Eastern Timezone (robust)."""
         import pytz
         from datetime import datetime
