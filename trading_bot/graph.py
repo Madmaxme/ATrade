@@ -272,7 +272,15 @@ Think step by step about risk management before acting.
         print(f"   🤖 Agent Action: Calling {len(tool_names)} tools: {', '.join(tool_names)}")
     elif response.content:
         # Just a thought/text response
-        print(f"   🤔 Agent Thought: {response.content[:100].replace(chr(10), ' ')}...")
+        content_str = str(response.content)
+        if isinstance(response.content, list):
+             # Extract text from list content if possible, or just stringify
+             content_str = str(response.content)
+        else:
+             content_str = str(response.content)
+             
+        clean_content = content_str[:100].replace(chr(10), ' ')
+        print(f"   🤔 Agent Thought: {clean_content}...")
     
     # Return both the new user message(s) and the response to be saved to state
     return {
