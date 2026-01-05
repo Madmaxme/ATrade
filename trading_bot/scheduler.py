@@ -218,7 +218,7 @@ class TradingScheduler:
             end_equity = float(acct.equity)
             
             # Get filled orders from today
-            today = datetime.now().date()
+            today = self._get_et_time().date()
             orders = client.get_orders(filter=GetOrdersRequest(
                 status=QueryOrderStatus.CLOSED,
                 limit=100,
@@ -271,7 +271,7 @@ TRADES EXECUTED:"""
                 "max_position_size": self.config.max_position_size_pct,
                 "stop_loss": self.config.stop_loss_pct,
                 "take_profit": self.config.take_profit_pct,
-                "strategy": "daily_champion" 
+                "strategy": "podium_strategy" 
             }
 
             episode = DailyEpisode(
