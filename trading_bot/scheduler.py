@@ -97,6 +97,7 @@ class TradingScheduler:
         self.running = True
         
         print("\n🤖 Bot Active. Systems initialized.")
+        print(f"   🕒 Server Time (ET): {self._get_et_time().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"   Settings: Scanning every {self.config.scan_interval_minutes}m | Checking positions every {self.config.position_check_interval_seconds}s")
         
         while self.running:
