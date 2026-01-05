@@ -47,11 +47,11 @@ class TradingConfig:
     # STRICT LIMIT: One stock per day ("Daily Champion")
     max_positions: int = 1
     
-    # Stop loss percentage per trade (e.g., 0.02 = 2%)
-    stop_loss_pct: float = 0.02
+    # Stop loss percentage per trade (e.g., 0.01 = 1%)
+    stop_loss_pct: float = 0.01
     
-    # Take profit percentage per trade (e.g., 0.04 = 4%, gives 2:1 reward/risk)
-    take_profit_pct: float = 0.04
+    # Take profit percentage per trade (e.g., 0.02 = 2%, gives 2:1 reward/risk)
+    take_profit_pct: float = 0.02
     
     # Maximum daily loss before stopping (e.g., 0.02 = 2% of portfolio)
     max_daily_loss_pct: float = 0.02
