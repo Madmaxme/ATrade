@@ -201,6 +201,25 @@ async def agent_node(state: TradingState, trading_config: TradingConfig, model: 
     # Bind tools to model
     model_with_tools = model.bind_tools(tools)
     
+    # Filter signals if at capacity to prevent wasting cycles on impossible trades
+    scan_signals = state.get('signals', [])
+    current_positions = state.get('positions', [])
+    
+    # Check if we are at max capacity
+    # Note: We use the value from config, but we can also infer from the state if needed
+    if len(current_positions) >= trading_config.max_positions:
+        held_symbols = {p['symbol'] for p in current_positions}
+        
+        # Only keep signals for stocks we already own (e.g. SELL signals or re-evaluating)
+        relevant_signals = [s for s in scan_signals if s['symbol'] in held_symbols]
+        
+        if len(relevant_signals) < len(scan_signals):
+            ignored_count = len(scan_signals) - len(relevant_signals)
+            print(f"   🛡️ Risk Manager: Ignoring {ignored_count} new signals (Portfolio Full: {len(current_positions)}/{trading_config.max_positions})")
+            # Create a modified state copy for the prompt context only
+            # We don't modify the actual state persistence, just what the agent sees
+            scan_signals = relevant_signals
+
     # Build context message
     context = f"""
 Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S ET')}
@@ -213,11 +232,11 @@ Account Status:
 - Portfolio Value: ${state.get('portfolio_value', 0):,.2f}
 - Daily P&L: ${state.get('daily_pnl', 0):,.2f}
 
-Open Positions ({len(state.get('positions', []))}):
-{_format_positions(state.get('positions', []))}
+Open Positions ({len(current_positions)}):
+{_format_positions(current_positions)}
 
-New Signals ({len(state.get('signals', []))}):
-{_format_signals(state.get('signals', []))}
+New Signals ({len(scan_signals)}):
+{_format_signals(scan_signals)}
 
 Based on the above, decide what action to take. You can:
 1. Enter new positions (if signals are good and we have capacity)
@@ -246,6 +265,14 @@ Think step by step about risk management before acting.
     messages_input = messages_state + new_messages
     
     response = await model_with_tools.ainvoke(messages_input)
+
+    # Debug logging for user transparency
+    if response.tool_calls:
+        tool_names = [t['name'] for t in response.tool_calls]
+        print(f"   🤖 Agent Action: Calling {len(tool_names)} tools: {', '.join(tool_names)}")
+    elif response.content:
+        # Just a thought/text response
+        print(f"   🤔 Agent Thought: {response.content[:100].replace(chr(10), ' ')}...")
     
     # Return both the new user message(s) and the response to be saved to state
     return {
