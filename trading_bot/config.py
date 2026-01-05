@@ -13,6 +13,14 @@ from typing import List
 class TradingConfig:
     """Configuration for the trading bot."""
     
+    def get_now_et(self) -> datetime:
+        """Get current time in Eastern Timezone (robust)."""
+        import pytz
+        from datetime import datetime
+        # Get UTC time first, then convert to ET
+        # This handles containers running in UTC or other timezones correctly
+        return datetime.now(pytz.utc).astimezone(pytz.timezone('US/Eastern'))
+    
     # =========================================================================
     # SYSTEM PATHS
     # =========================================================================

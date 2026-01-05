@@ -221,8 +221,11 @@ async def agent_node(state: TradingState, trading_config: TradingConfig, model: 
             scan_signals = relevant_signals
 
     # Build context message
+    # Use robust time conversion from config
+    now_et = trading_config.get_now_et()
+    
     context = f"""
-Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S ET')}
+Current Time: {now_et.strftime('%Y-%m-%d %H:%M:%S ET')}
 Market Open: {state.get('is_market_open', False)}
 Should Close All: {state.get('should_close_all', False)}
 Daily Loss Limit Hit: {state.get('daily_loss_limit_hit', False)}

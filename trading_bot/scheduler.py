@@ -36,7 +36,7 @@ class TradingScheduler:
     
     def _get_et_time(self) -> datetime:
         """Get current time in Eastern timezone."""
-        return datetime.now(self.et_tz)
+        return self.config.get_now_et()
     
     def _parse_time(self, time_str: str) -> time:
         """Parse time string (HH:MM) to time object."""
