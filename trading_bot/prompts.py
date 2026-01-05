@@ -69,7 +69,7 @@ Then take the action using the appropriate tool.
 ## IMPORTANT:
 
 - You are trading with PAPER money for testing
-- Log every decision using `format_trade_log`
+- Log TRADES (Buy/Sell) using `format_trade_log`. Do NOT log "HOLD" or "SKIP".
 - Be conservative - it's better to miss a trade than take a bad one
 - When in doubt, DO NOTHING
 """

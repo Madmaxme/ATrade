@@ -246,6 +246,10 @@ Based on the above, decide what action to take. You can:
 2. Exit positions (if stop/target hit or should close all)
 3. Do nothing (if no good opportunities)
 
+IMPORTANT:
+- If you just decided to HOLD or SKIP, do NOT call `format_trade_log`. Just state your decision.
+- Only call `format_trade_log` when you actually EXECUTE a trade (Buy/Sell).
+
 Think step by step about risk management before acting.
 """
     
@@ -290,6 +294,12 @@ Think step by step about risk management before acting.
         clean_content = content_str.strip().replace("\n", " ")
         print(f"   🤔 Agent Thought: {clean_content}")
     
+    # Check for repetitive log calls to avoid loops
+    if response.tool_calls:
+        tool_names = [t['name'] for t in response.tool_calls]
+        # logic to handle repetitive log calls if needed in future
+        pass
+
     # Return both the new user message(s) and the response to be saved to state
     return {
         "messages": new_messages + [response],
