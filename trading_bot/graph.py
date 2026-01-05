@@ -284,8 +284,8 @@ Think step by step about risk management before acting.
              content_str = str(response.content)
              
         # Print a clean preview
-        clean_content = content_str.strip().replace("\n", " ")[:150]
-        print(f"   🤔 Agent Thought: {clean_content}...")
+        clean_content = content_str.strip().replace("\n", " ")
+        print(f"   🤔 Agent Thought: {clean_content}")
     
     # Return both the new user message(s) and the response to be saved to state
     return {
