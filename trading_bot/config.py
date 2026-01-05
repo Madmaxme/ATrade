@@ -137,6 +137,13 @@ class TradingConfig:
     
     # Trade log directory
     log_directory: str = "logs"
+    
+    # =========================================================================
+    # GRAPH SETTINGS
+    # =========================================================================
+    
+    # Recursion limit for LangGraph execution (max steps per cycle)
+    recursion_limit: int = 200
 
 
 # Default configuration instance

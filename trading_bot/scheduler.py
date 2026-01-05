@@ -151,7 +151,7 @@ class TradingScheduler:
             thread_id = f"trading_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             config = {
                 "configurable": {"thread_id": thread_id},
-                "recursion_limit": 100
+                "recursion_limit": self.config.recursion_limit
             }
 
             # Reset message history for this new cycle
