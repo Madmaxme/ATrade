@@ -19,9 +19,6 @@ class DailyEpisode:
     """Represents a single day of trading experience (One 'Episode')."""
     date: str
     
-    # The 'State' (What the market looked like)
-    market_sentiment: str  # derived from LLM analysis or VIX
-    
     # The 'Action' (What strategy/config we used)
     config_used: Dict[str, Any]
     champion_stock: str
@@ -52,7 +49,14 @@ class TradingMemory:
             try:
                 with open(self.filepath, 'r') as f:
                     data = json.load(f)
-                    self.episodes = [DailyEpisode(**item) for item in data]
+                    # Filter out any extra keys from old memory files
+                    valid_keys = DailyEpisode.__match_args__ if hasattr(DailyEpisode, "__match_args__") else DailyEpisode.__annotations__.keys()
+                    # Simple sanitization
+                    clean_episodes = []
+                    for item in data:
+                        clean_item = {k: v for k, v in item.items() if k in DailyEpisode.__annotations__}
+                        clean_episodes.append(DailyEpisode(**clean_item))
+                    self.episodes = clean_episodes
                 print(f"   🧠 Memory Loaded: {len(self.episodes)} past trading days.")
             except Exception as e:
                 print(f"   ⚠️ Memory Corruption: Could not load {self.filepath}: {e}")
@@ -88,7 +92,7 @@ class TradingMemory:
         summary = "RECENT TRADING HISTORY:\n"
         for ep in recent:
             emoji = "✅" if ep.win else "❌"
-            summary += f"- {ep.date}: {emoji} {ep.champion_stock} ({ep.pnl_pct:+.2f}%) | Market: {ep.market_sentiment}\n"
+            summary += f"- {ep.date}: {emoji} {ep.champion_stock} ({ep.pnl_pct:+.2f}%)\n"
         
         return summary
 

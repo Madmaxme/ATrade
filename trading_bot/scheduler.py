@@ -276,7 +276,6 @@ TRADES EXECUTED:"""
 
             episode = DailyEpisode(
                 date=today.strftime('%Y-%m-%d'),
-                market_sentiment="unknown", # We will implement market sentiment analysis later
                 config_used=config_snapshot,
                 champion_stock=champion,
                 start_equity=start_equity,

@@ -254,6 +254,45 @@ def format_trade_log(
     return f"[{timestamp}] {action} {quantity} {symbol} @ ${price:.2f} (${total:,.2f}) - {reason}"
 
 
+@tool
+def get_market_sentiment(symbol: str) -> dict:
+    """
+    Get market sentiment and news for a specific symbol using Tavily.
+    
+    Args:
+        symbol: Stock symbol (e.g. 'AAPL')
+    
+    Returns:
+        Dictionary with news summary and headlines
+    """
+    try:
+        from tavily import TavilyClient
+        import os
+        
+        api_key = os.getenv("TAVILY_API_KEY")
+        if not api_key:
+            return {"error": "TAVILY_API_KEY not set", "sentiment": "unknown"}
+            
+        client = TavilyClient(api_key=api_key)
+        
+        # Search specifically for news
+        query = f"{symbol} stock news today why is it moving"
+        response = client.search(query, topic="news", time_range="day", max_results=3)
+        
+        results = []
+        for r in response.get("results", []):
+            results.append(f"- {r['title']}: {r['content'][:200]}...")
+            
+        return {
+            "symbol": symbol,
+            "headline_count": len(results),
+            "top_news": results,
+            "sentiment": "See news content for details"
+        }
+    except Exception as e:
+        return {"error": str(e), "sentiment": "unknown"}
+
+
 # =============================================================================
 # GET ALL TOOLS
 # =============================================================================
@@ -269,6 +308,7 @@ async def get_trading_tools(config: TradingConfig) -> List:
         calculate_stop_and_target,
         check_daily_loss_limit,
         evaluate_signal_quality,
+        get_market_sentiment,
         format_trade_log,
     ]
     

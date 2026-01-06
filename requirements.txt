@@ -24,3 +24,6 @@ pytz>=2024.1
 
 # Optional: For better async
 aiohttp>=3.9.0
+
+# Search
+tavily-python>=0.5.0
