@@ -354,7 +354,7 @@ def should_continue(state: TradingState) -> Literal["tools", "end"]:
 # GRAPH CONSTRUCTION
 # =============================================================================
 
-async def create_trading_graph(config: TradingConfig) -> StateGraph:
+async def create_trading_graph(config: TradingConfig, override_tools: List = None) -> StateGraph:
     """
     Creates the LangGraph trading graph.
     
@@ -373,7 +373,10 @@ async def create_trading_graph(config: TradingConfig) -> StateGraph:
     )
     
     # Get trading tools (includes MCP tools from Alpaca)
-    tools = await get_trading_tools(config)
+    if override_tools:
+        tools = override_tools
+    else:
+        tools = await get_trading_tools(config)
     
     # Create tool node
     tool_node = ToolNode(tools)

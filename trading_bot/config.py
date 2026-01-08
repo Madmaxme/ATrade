@@ -48,10 +48,12 @@ class TradingConfig:
     max_positions: int = 3
     
     # Stop loss percentage per trade (e.g., 0.01 = 1%)
-    stop_loss_pct: float = 0.01
+    # UPDATED: Widened to 2% based on backtesting (survives noise better)
+    stop_loss_pct: float = 0.02
     
     # Take profit percentage per trade (e.g., 0.02 = 2%, gives 2:1 reward/risk)
-    take_profit_pct: float = 0.02
+    # UPDATED: Increased to 4% (Maintaining 2:1 ratio with wider stop)
+    take_profit_pct: float = 0.04
     
     # Maximum daily loss before stopping (e.g., 0.02 = 2% of portfolio)
     max_daily_loss_pct: float = 0.02
@@ -67,7 +69,8 @@ class TradingConfig:
     sma_period: int = 21
     
     # Minimum volume ratio to consider a signal valid
-    min_volume_ratio: float = 0.5
+    # UPDATED: Increased to 1.5x (High Conviction only) to avoid chop
+    min_volume_ratio: float = 1.5
     
     # Maximum volume ratio (avoid extreme spikes that might reverse)
     max_volume_ratio: float = 5.0
