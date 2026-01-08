@@ -173,7 +173,7 @@ class TradingScheduler:
             state["perform_scan"] = should_scan
             
             if should_scan:
-                print(f"\n⏰ {now.strftime('%H:%M:%S')} - Running full market scan...")
+                print(f"\n⏰ {now.strftime('%H:%M:%S')} - Interval Reached: Scan Allowed (if capacity exists)")
                 last_scan_time = now
             else:
                 # Verbose logging (commented out to avoid spam, or print simple dot)

@@ -86,12 +86,17 @@ class TradingState(TypedDict):
 # NODE FUNCTIONS
 # =============================================================================
 
-async def scanner_node(state: TradingState) -> dict:
+
+
+
+async def scanner_node(state: TradingState, trading_config: TradingConfig) -> dict:
     """
     Scans for new trading signals.
-    This runs periodically to find SMA crossover opportunities.
+    Runs only if:
+    1. 'perform_scan' is True
+    2. We have capacity for new positions (current < max)
     """
-    # Only scan if the flag is set
+    # 1. Check scan flag
     if not state.get("perform_scan", False):
         return {
             "signals": state.get("signals", []),
@@ -99,6 +104,17 @@ async def scanner_node(state: TradingState) -> dict:
             "last_error": None
         }
 
+    # 2. Check capacity (Smart Scan)
+    current_positions = state.get("positions", [])
+    if len(current_positions) >= trading_config.max_positions:
+        print(f"   🛡️ Smart Scan: Skipping market scan (Portfolio Full: {len(current_positions)}/{trading_config.max_positions})")
+        return {
+            "signals": state.get("signals", []), # Keep existing signals if any
+            "current_action": "monitoring_positions",
+            "last_error": None
+        }
+
+    # 3. Perform Scan
     from trading_bot.scanner import scan_for_signals
     from dataclasses import asdict
     
@@ -107,7 +123,7 @@ async def scanner_node(state: TradingState) -> dict:
         # Convert dataclasses to dicts for serialization
         signals_dict = [asdict(s) for s in signals]
         
-        # Limit to top 10 signals to avoid recursion limits and over-trading
+        # Limit to top 10 signals
         signals_dict = signals_dict[:10]
         
         return {
@@ -202,27 +218,18 @@ async def agent_node(state: TradingState, trading_config: TradingConfig, model: 
     model_with_tools = model.bind_tools(tools)
     
     # Filter signals if at capacity to prevent wasting cycles on impossible trades
+    # NOTE: With the new tool-based scanning, the agent decides when to scan.
+    # However, if there ARE signals in the state (leftover), we might still want to show them.
     scan_signals = state.get('signals', [])
     current_positions = state.get('positions', [])
-    
-    # Check if we are at max capacity
-    # Note: We use the value from config, but we can also infer from the state if needed
-    if len(current_positions) >= trading_config.max_positions:
-        held_symbols = {p['symbol'] for p in current_positions}
-        
-        # Only keep signals for stocks we already own (e.g. SELL signals or re-evaluating)
-        relevant_signals = [s for s in scan_signals if s['symbol'] in held_symbols]
-        
-        if len(relevant_signals) < len(scan_signals):
-            ignored_count = len(scan_signals) - len(relevant_signals)
-            print(f"   🛡️ Risk Manager: Ignoring {ignored_count} new signals (Portfolio Full: {len(current_positions)}/{trading_config.max_positions})")
-            # Create a modified state copy for the prompt context only
-            # We don't modify the actual state persistence, just what the agent sees
-            scan_signals = relevant_signals
 
     # Build context message
     # Use robust time conversion from config
     now_et = trading_config.get_now_et()
+    
+    
+    # helper for signals display
+    signals_text = _format_signals(scan_signals)
     
     context = f"""
 Current Time: {now_et.strftime('%Y-%m-%d %H:%M:%S ET')}
@@ -238,8 +245,8 @@ Account Status:
 Open Positions ({len(current_positions)}):
 {_format_positions(current_positions)}
 
-New Signals ({len(scan_signals)}):
-{_format_signals(scan_signals)}
+New/Existing Signals (from previous scans):
+{signals_text}
 
 Based on the above, decide what action to take. You can:
 1. Enter new positions (if signals are good and we have capacity)
@@ -385,9 +392,12 @@ async def create_trading_graph(config: TradingConfig, override_tools: List = Non
     workflow = StateGraph(TradingState)
     
     # Add nodes
-    # Add nodes
     from functools import partial
-    workflow.add_node("scanner", scanner_node)
+    
+    # Bind config to scanner
+    scanner_node_bound = partial(scanner_node, trading_config=config)
+    workflow.add_node("scanner", scanner_node_bound)
+    
     workflow.add_node("account_sync", account_sync_node)
     
     # Use partial to bind arguments to the async function
@@ -397,9 +407,10 @@ async def create_trading_graph(config: TradingConfig, override_tools: List = Non
     workflow.add_node("tools", tool_node)
     
     # Add edges
-    workflow.add_edge(START, "scanner")
-    workflow.add_edge("scanner", "account_sync")
-    workflow.add_edge("account_sync", "agent")
+    # Reordered: Sync -> Scanner -> Agent
+    workflow.add_edge(START, "account_sync")
+    workflow.add_edge("account_sync", "scanner")
+    workflow.add_edge("scanner", "agent")
     
     # Conditional edge from agent
     workflow.add_conditional_edges(
