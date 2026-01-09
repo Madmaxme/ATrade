@@ -14,6 +14,7 @@ import logging
 import pandas as pd
 import numpy as np
 import yfinance as yf
+import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 

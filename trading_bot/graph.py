@@ -5,6 +5,7 @@ LangGraph-based state machine for the day trading bot.
 """
 
 import operator
+import json
 from datetime import datetime
 from typing import Annotated, TypedDict, List, Optional, Literal
 from dataclasses import dataclass
