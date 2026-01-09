@@ -199,9 +199,9 @@ class TradingScheduler:
             await asyncio.sleep(self.config.position_check_interval_seconds)
         
         print(f"\n📉 Market Closed")
-        await self._generate_daily_report(start_equity, state)
+        await self._generate_daily_report(final_state=state, start_equity=start_equity)
     
-    async def _generate_daily_report(self, start_equity: float, final_state: TradingState = None):
+    async def _generate_daily_report(self, final_state: TradingState = None, start_equity: float = 0.0):
         """Generate and save the daily trading report/journal AND structured memory."""
         print("   📝 Generating Daily Journal & Updating Memory...")
         try:

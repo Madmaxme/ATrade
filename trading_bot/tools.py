@@ -327,6 +327,23 @@ def find_best_settings_tool(symbol: str) -> str:
     return find_best_settings(symbol)
 
 
+@tool
+def get_volatility_data_tool(symbol: str) -> str:
+    """
+    VOLATILITY CHECK TOOL.
+    Get the Average True Range (ATR) and recommended stop loss distance for a stock.
+    Use this to adapt your risk management content to the specific stock's "weather".
+
+    Args:
+        symbol: The stock ticker (e.g. 'AAPL')
+
+    Returns:
+        JSON string with ATR, Volatility, and Suggested Stop % (2x ATR).
+    """
+    from trading_bot.quant_lab import get_volatility_metrics
+    return get_volatility_metrics(symbol)
+
+
 # =============================================================================
 # GET ALL TOOLS
 # =============================================================================
@@ -346,6 +363,7 @@ async def get_trading_tools(config: TradingConfig) -> List:
         format_trade_log,
         vet_trade_signal_tool,
         find_best_settings_tool,
+        get_volatility_data_tool,
     ]
     
     # Get MCP tools from Alpaca

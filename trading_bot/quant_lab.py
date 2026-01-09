@@ -186,6 +186,46 @@ class QuantLab:
             "message": f"Best fit for {symbol}: Buy RSI<{best_params['rsi_threshold']}, Stop {best_params['stop_pct']:.2%}. (Return: {best_metrics['total_return_pct']}%)"
         }
 
+    def get_volatility(self, symbol: str, days: int = 14) -> Dict:
+        """
+        Calculate Average True Range (ATR) and Volatility.
+        """
+        df = self.get_history(symbol, days=60) # Need enough data for rolling
+        if df.empty or len(df) < days + 1:
+            return {"error": "Insufficient data"}
+            
+        # True Range Calculation
+        high = df['high']
+        low = df['low']
+        close = df['close'].shift(1)
+        
+        tr1 = high - low
+        tr2 = (high - close).abs()
+        tr3 = (low - close).abs()
+        
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        atr = tr.rolling(window=days).mean().iloc[-1]
+        
+        # Volatility (Standard Deviation of returns)
+        daily_pct_change = df['close'].pct_change()
+        volatility_std = daily_pct_change.rolling(window=days).std().iloc[-1]
+        
+        current_price = df['close'].iloc[-1]
+        
+        # Suggested Stop Distance (2 * ATR is standard)
+        atr_stop_dist = atr * 2.0
+        atr_stop_pct = (atr_stop_dist / current_price)
+        
+        return {
+            "symbol": symbol,
+            "current_price": round(current_price, 2),
+            "atr": round(atr, 2),
+            "volatility_std": round(volatility_std, 4),
+            "suggested_stop_distance": round(atr_stop_dist, 2),
+            "suggested_stop_pct": round(atr_stop_pct, 4),
+            "market_condition": "VOLATILE" if atr_stop_pct > 0.03 else "STABLE"
+        }
+
 # Global Instance
 quant_lab = QuantLab()
 
@@ -213,3 +253,10 @@ def find_best_settings(symbol: str) -> str:
         })
     else:
         return "Optimization failed: No profitable strategy found for this stock."
+
+def get_volatility_metrics(symbol: str) -> str:
+    """Wrapper for agent to get volatility data."""
+    res = quant_lab.get_volatility(symbol)
+    if "error" in res:
+        return f"Could not calculate volatility for {symbol}."
+    return json.dumps(res, indent=2)
