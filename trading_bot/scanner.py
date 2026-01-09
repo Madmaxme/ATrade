@@ -86,56 +86,76 @@ def get_sp500_tickers() -> List[str]:
 # SCANNER LOGIC
 # =============================================================================
 
-def calculate_sma(prices: pd.Series, window: int = 21) -> pd.Series:
-    """Calculate Simple Moving Average."""
-    return prices.rolling(window=window).mean()
+# =============================================================================
+# SCANNER LOGIC (RSI MEAN REVERSION)
+# =============================================================================
 
+def calculate_rsi(prices: pd.Series, period: int = 2) -> pd.Series:
+    """Calculate Relative Strength Index (RSI)."""
+    delta = prices.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
 
-def detect_crossover(df: pd.DataFrame, sma_col: str = 'SMA_21') -> Optional[str]:
-    """Detect SMA crossover."""
+def detect_rsi_signal(df: pd.DataFrame, rsi_col: str = 'RSI_2') -> Optional[str]:
+    """Detect RSI Mean Reversion Signals."""
     if len(df) < 2:
         return None
     
     today = df.iloc[-1]
-    yesterday = df.iloc[-2]
     
-    if pd.isna(today[sma_col]) or pd.isna(yesterday[sma_col]):
+    if pd.isna(today[rsi_col]):
         return None
     
-    # BUY: crossed from below to above
-    if yesterday['Close'] <= yesterday[sma_col] and today['Close'] > today[sma_col]:
+    # RSI < 10 (or 20) -> Extreme Oversold -> BUY DIP
+    if today[rsi_col] < 15: 
         return 'BUY'
     
-    # SELL: crossed from above to below
-    if yesterday['Close'] >= yesterday[sma_col] and today['Close'] < today[sma_col]:
-        return 'SELL'
+    # RSI > 90 (or 80) -> Extreme Overbought -> SELL RIP
+    # if today[rsi_col] > 90:
+    #     return 'SELL'
     
     return None
 
-
 def analyze_stock(ticker: str, df: pd.DataFrame, sma_period: int = 21) -> Optional[Signal]:
-    """Analyze a single stock for crossover signals."""
-    if len(df) < sma_period + 1:
+    """Analyze a single stock for RSI Mean Reversion signals."""
+    if len(df) < 30:
         return None
     
     df = df.copy()
-    df['SMA_21'] = calculate_sma(df['Close'], window=sma_period)
     
-    signal_type = detect_crossover(df)
+    # Calculate Indicators
+    df['RSI_2'] = calculate_rsi(df['Close'], period=2)
+    df['SMA_200'] = df['Close'].rolling(window=200).mean() # Trend filter
+    
+    signal_type = detect_rsi_signal(df)
     
     if signal_type:
         current_price = df['Close'].iloc[-1]
-        sma_value = df['SMA_21'].iloc[-1]
-        volume = df['Volume'].iloc[-1]
-        avg_volume = df['Volume'].tail(sma_period).mean()
-        daily_change = ((df['Close'].iloc[-1] / df['Close'].iloc[-2]) - 1) * 100
-        pct_from_sma = ((current_price - sma_value) / sma_value) * 100
         
+        # Trend Filter: Only Buy Dips in an Uptrend
+        # if df['SMA_200'].iloc[-1] and current_price < df['SMA_200'].iloc[-1]:
+             # return None # Skip if stock is in long term downtrend
+             
+        sma_value = df['SMA_200'].iloc[-1] if not pd.isna(df['SMA_200'].iloc[-1]) else current_price
+        volume = df['Volume'].iloc[-1]
+        avg_volume = df['Volume'].tail(20).mean()
+        daily_change = ((df['Close'].iloc[-1] / df['Close'].iloc[-2]) - 1) * 100
+        
+        rsi_val = df['RSI_2'].iloc[-1]
+        
+        # We repurpose 'pct_from_sma' to store RSI value for the agent prompt
+        # The agent expects pct_from_sma, so we hack it for now or update prompt.
+        # Let's keep pct_from_sma as actual dist from SMA200 for context.
+        pct_from_sma = ((current_price - sma_value) / sma_value) * 100
+
         return Signal(
             symbol=ticker,
             signal_type=signal_type,
             price=float(current_price),
-            sma=float(sma_value),
+            sma=float(rsi_val), # Storing RSI in 'sma' field for display hack
             pct_from_sma=float(pct_from_sma),
             volume_ratio=float(volume / avg_volume) if avg_volume > 0 else 0.0,
             daily_change_pct=float(daily_change),

@@ -294,6 +294,40 @@ def get_market_sentiment(symbol: str) -> dict:
 
 
 # =============================================================================
+@tool
+def vet_trade_signal_tool(symbol: str, proposed_sma: int = 21) -> str:
+    """
+    BACKTEST VALIDATION TOOL.
+    Checks if a trading strategy has historically worked for a specific stock.
+    
+    Args:
+        symbol: The stock ticker (e.g. 'AAPL')
+        proposed_sma: The SMA period to test (default 21)
+        
+    Returns:
+        "APPROVED" or "VETO" with reasoning based on historical win rate.
+    """
+    from trading_bot.quant_lab import vet_trade_signal
+    return vet_trade_signal(symbol, proposed_sma)
+
+@tool
+def find_best_settings_tool(symbol: str) -> str:
+    """
+    OPTIMIZATION TOOL.
+    Finds the best-performing parameters (SMA period, Stop Loss) for a specific stock
+    by running a grid search on recent history.
+    
+    Args:
+        symbol: The stock ticker (e.g. 'AAPL')
+        
+    Returns:
+        Recommended settings (SMA, Stop Loss, Take Profit) based on backtesting.
+    """
+    from trading_bot.quant_lab import find_best_settings
+    return find_best_settings(symbol)
+
+
+# =============================================================================
 # GET ALL TOOLS
 # =============================================================================
 
@@ -310,6 +344,8 @@ async def get_trading_tools(config: TradingConfig) -> List:
         evaluate_signal_quality,
         get_market_sentiment,
         format_trade_log,
+        vet_trade_signal_tool,
+        find_best_settings_tool,
     ]
     
     # Get MCP tools from Alpaca

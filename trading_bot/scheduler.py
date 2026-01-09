@@ -8,6 +8,7 @@ import asyncio
 from datetime import datetime, time
 from typing import Optional
 import pytz
+import json
 
 from langgraph.graph import StateGraph
 
@@ -198,9 +199,9 @@ class TradingScheduler:
             await asyncio.sleep(self.config.position_check_interval_seconds)
         
         print(f"\n📉 Market Closed")
-        await self._generate_daily_report(start_equity)
+        await self._generate_daily_report(start_equity, state)
     
-    async def _generate_daily_report(self, start_equity: float):
+    async def _generate_daily_report(self, start_equity: float, final_state: TradingState = None):
         """Generate and save the daily trading report/journal AND structured memory."""
         print("   📝 Generating Daily Journal & Updating Memory...")
         try:
@@ -212,6 +213,8 @@ class TradingScheduler:
 
             # Initialize Memory with persistent path
             memory = TradingMemory(data_dir=self.config.data_dir)
+             
+            # ... (rest of function)
 
             client = TradingClient(self.config.alpaca_api_key, self.config.alpaca_secret_key, paper=self.config.paper_trading)
             acct = client.get_account()
@@ -273,11 +276,20 @@ TRADES EXECUTED:"""
                 "take_profit": self.config.take_profit_pct,
                 "strategy": "podium_strategy" 
             }
+            
+            # Load Optimization Data from State
+            opt_data = None
+            if final_state and "optimization_history" in final_state:
+                full_history = final_state.get("optimization_history", {})
+                if full_history:
+                     # Filter only for stocks we actually traded to save space
+                     opt_data = {k: v for k, v in full_history.items() if k in traded_symbols}
 
             episode = DailyEpisode(
                 date=today.strftime('%Y-%m-%d'),
                 config_used=config_snapshot,
                 champion_stock=champion,
+                optimization_data=opt_data, # NEW: Agent's Brain Output
                 start_equity=start_equity,
                 end_equity=end_equity,
                 pnl=pnl,
@@ -324,6 +336,19 @@ TRADES EXECUTED:"""
         friendly_action = action_map.get(action, action.replace("_", " ").title())
         
         print(f"   ℹ️  Status: {friendly_action}")
+        
+        # Calculate & Display P&L
+        daily_pnl = state.get("daily_pnl", 0.0)
+        portfolio_val = state.get("portfolio_value", 0.0)
+        
+        pnl_pct = 0.0
+        if portfolio_val > 0:
+            start_equity = portfolio_val - daily_pnl
+            if start_equity > 0:
+                pnl_pct = (daily_pnl / start_equity) * 100
+        
+        pnl_emoji = "🟢" if daily_pnl >= 0 else "🔴"
+        print(f"   💰 Daily P&L: {pnl_emoji} ${daily_pnl:+.2f} ({pnl_pct:+.2f}%) | Equity: ${portfolio_val:,.2f}")
         print(f"   📊 Detail: {len(positions)} positions open. {len(signals)} new signals found.")
         
         if state.get("daily_loss_limit_hit"):

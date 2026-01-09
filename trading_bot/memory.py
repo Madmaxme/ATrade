@@ -23,6 +23,9 @@ class DailyEpisode:
     config_used: Dict[str, Any]
     champion_stock: str
     
+    # Quant Lab Data (New)
+    optimization_data: Optional[Dict] = None # Stores {sma: 10, stop: 0.07, source: "QuantLab"}
+    
     # The 'Reward' (Outcome)
     start_equity: float
     end_equity: float
@@ -105,7 +108,14 @@ class TradingMemory:
             return ""
             
         wins = [ep for ep in self.episodes if ep.win]
-        losses = [ep for ep in self.episodes if not ep.win]
+        
+        # New: Analyze Quant Lab Performance
+        optimized_wins = [ep for ep in wins if ep.optimization_data]
+        optimized_count = len([ep for ep in self.episodes if ep.optimization_data])
+        
+        opt_win_rate = 0
+        if optimized_count > 0:
+            opt_win_rate = len(optimized_wins) / optimized_count * 100
         
         win_rate = len(wins) / len(self.episodes) * 100 if self.episodes else 0
         
@@ -113,5 +123,6 @@ class TradingMemory:
 MEMORY INSIGHTS:
 - Total Days Tracked: {len(self.episodes)}
 - Win Rate: {win_rate:.1f}%
+- Quant Lab Usage: {optimized_count} times (Win Rate: {opt_win_rate:.1f}%)
 - Last 3 Trades: {' '.join(['WIN' if ep.win else 'LOSS' for ep in self.episodes[-3:]])}
 """

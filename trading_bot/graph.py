@@ -13,7 +13,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, SystemMessage, ToolMessage
 
 from trading_bot.config import TradingConfig
 from trading_bot.tools import get_trading_tools
@@ -77,6 +77,10 @@ class TradingState(TypedDict):
 
     # Current action being taken
     current_action: Optional[str]
+    
+    # NEW: Store optimization results for end-of-day memory
+    # Format: { "AAPL": {"rsi_threshold": 25, ...}, ... }
+    optimization_history: Optional[dict]
     
     # Error tracking
     last_error: Optional[str]
@@ -262,6 +266,33 @@ Think step by step about risk management before acting.
     
     # helper to construct messages
     messages_state = state.get("messages", [])
+    
+    # NEW: Capture Optimization Data from Tool Outputs
+    # We scan recent messages for "find_best_settings_tool" outputs
+    opt_history = state.get("optimization_history", {}) or {}
+    history_updated = False
+    
+    for msg in messages_state:
+        if isinstance(msg, ToolMessage) and msg.name == "find_best_settings_tool":
+            content = msg.content
+            if "OPTIMIZATION RESULT" in content:
+                try:
+                    import json
+                    # Attempt to parse
+                    data = json.loads(content)
+                    if isinstance(data, dict) and "data" in data:
+                        raw = data["data"]
+                        symbol = raw.get("symbol")
+                        if symbol:
+                            opt_history[symbol] = raw
+                            history_updated = True
+                except:
+                    # Fallback if text format
+                    pass
+    
+    # If we updated history, we must return it in the final dict (LangGraph merges updates)
+    # logic is handled at return statement, but we need to pass this state to return
+    
     new_messages = []
     
     # Add system prompt if this is the start of conversation
@@ -310,7 +341,8 @@ Think step by step about risk management before acting.
     # Return both the new user message(s) and the response to be saved to state
     return {
         "messages": new_messages + [response],
-        "current_action": "agent_decided"
+        "current_action": "agent_decided",
+        "optimization_history": opt_history # Persist updated history
     }
 
 
