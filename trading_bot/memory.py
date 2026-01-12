@@ -23,15 +23,15 @@ class DailyEpisode:
     config_used: Dict[str, Any]
     champion_stock: str
     
-    # Quant Lab Data (New)
-    optimization_data: Optional[Dict] = None # Stores {sma: 10, stop: 0.07, source: "QuantLab"}
-    
     # The 'Reward' (Outcome)
     start_equity: float
     end_equity: float
     pnl: float
     pnl_pct: float
     win: bool
+    
+    # Quant Lab Data (New)
+    optimization_data: Optional[Dict] = None # Stores {sma: 10, stop: 0.07, source: "QuantLab"}
     
     # The 'Reflection' (Why did this happen?)
     notes: str = ""
