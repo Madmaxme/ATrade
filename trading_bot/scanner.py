@@ -136,8 +136,8 @@ def analyze_stock(ticker: str, df: pd.DataFrame, sma_period: int = 21) -> Option
         current_price = df['Close'].iloc[-1]
         
         # Trend Filter: Only Buy Dips in an Uptrend
-        # if df['SMA_200'].iloc[-1] and current_price < df['SMA_200'].iloc[-1]:
-             # return None # Skip if stock is in long term downtrend
+        if not pd.isna(df['SMA_200'].iloc[-1]) and current_price < df['SMA_200'].iloc[-1]:
+             return None # Skip if stock is in long term downtrend
              
         sma_value = df['SMA_200'].iloc[-1] if not pd.isna(df['SMA_200'].iloc[-1]) else current_price
         volume = df['Volume'].iloc[-1]

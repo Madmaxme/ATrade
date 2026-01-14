@@ -109,15 +109,11 @@ async def scanner_node(state: TradingState, trading_config: TradingConfig) -> di
             "last_error": None
         }
 
-    # 2. Check capacity (Smart Scan)
-    current_positions = state.get("positions", [])
-    if len(current_positions) >= trading_config.max_positions:
-        print(f"   🛡️ Smart Scan: Skipping market scan (Portfolio Full: {len(current_positions)}/{trading_config.max_positions})")
-        return {
-            "signals": state.get("signals", []), # Keep existing signals if any
-            "current_action": "monitoring_positions",
-            "last_error": None
-        }
+    # 3. Perform Scan (Always scan to allow for Strategy Rotation)
+    # current_positions = state.get("positions", [])
+    # if len(current_positions) >= trading_config.max_positions:
+    #    print(f"   🛡️ Smart Scan: Portfolio Full ({len(current_positions)}/{trading_config.max_positions}) - Scanning for Rotation Candidates...")
+    #    # We continue to scan so the agent can "Upgrade" positions if new signals are better.
 
     # 3. Perform Scan
     from trading_bot.scanner import scan_for_signals
