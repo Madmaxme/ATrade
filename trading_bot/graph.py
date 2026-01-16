@@ -320,6 +320,7 @@ Analyze the situation and decide.
         else:
              content_str = str(response.content)
 
+    t_clean = None
     if content_str.strip():
         import re
         t_clean = content_str.strip()
