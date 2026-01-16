@@ -152,8 +152,8 @@ async def fetch_data_yahoo(tickers: List[str]) -> dict:
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
-            df = stock.history(period="2mo")
-            if not df.empty and len(df) >= 22:
+            df = stock.history(period="1y")
+            if not df.empty and len(df) >= 200:
                 data[ticker] = df
         except Exception as e:
             print(f"   ❌ Error fetching {ticker} from Yahoo: {e}")
@@ -164,7 +164,7 @@ async def fetch_data_alpaca(tickers: List[str], api_key: str, secret_key: str) -
     client = StockHistoricalDataClient(api_key, secret_key)
     tickers_alpaca = [t.replace('-', '.') for t in tickers]
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=45)
+    start_date = end_date - timedelta(days=365)
     data = {}
     chunk_size = 50
     for i in range(0, len(tickers_alpaca), chunk_size):
