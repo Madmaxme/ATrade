@@ -313,10 +313,9 @@ Think step by step about risk management before acting.
         tool_names = [t['name'] for t in response.tool_calls]
         print(f"   🤖 Agent Action: Calling {len(tool_names)} tools: {', '.join(tool_names)}")
     elif response.content:
-        # Just a thought/text response
+        # Extract text content
         content_str = ""
         if isinstance(response.content, list):
-             # Extract text from list content if it's the standard format
              for block in response.content:
                  if isinstance(block, dict) and block.get("type") == "text":
                      content_str += block.get("text", "")
@@ -324,10 +323,14 @@ Think step by step about risk management before acting.
                      content_str += str(block)
         else:
              content_str = str(response.content)
-             
-        # Print a clean preview
-        clean_content = content_str.strip().replace("\n", " ")
-        print(f"   🤔 Agent Thought: {clean_content}")
+
+        # Print a clean, structured box for thoughts
+        thoughts = content_str.strip()
+        print("\n   ┌─── AGENT THOUGHT ──────────────────────────────────────────────────")
+        for line in thoughts.split('\n'):
+            if line.strip():
+                print(f"   │ {line.strip()}")
+        print("   └────────────────────────────────────────────────────────────────────")
     
     # Check for repetitive log calls to avoid loops
     if response.tool_calls:

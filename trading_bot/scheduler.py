@@ -335,8 +335,6 @@ TRADES EXECUTED:"""
         
         friendly_action = action_map.get(action, action.replace("_", " ").title())
         
-        print(f"   ℹ️  Status: {friendly_action}")
-        
         # Calculate & Display P&L
         daily_pnl = state.get("daily_pnl", 0.0)
         portfolio_val = state.get("portfolio_value", 0.0)
@@ -347,15 +345,17 @@ TRADES EXECUTED:"""
             if start_equity > 0:
                 pnl_pct = (daily_pnl / start_equity) * 100
         
-        pnl_emoji = "🟢" if daily_pnl >= 0 else "🔴"
-        print(f"   💰 Daily P&L: {pnl_emoji} ${daily_pnl:+.2f} ({pnl_pct:+.2f}%) | Equity: ${portfolio_val:,.2f}")
-        print(f"   📊 Detail: {len(positions)} positions open. {len(signals)} new signals found.")
+        status_emoji = "🛡️"
+        if state.get("daily_loss_limit_hit"): status_emoji = "🛑"
+        if state.get("should_close_all"): status_emoji = "⏰"
+
+        pnl_emoji = "🟩" if daily_pnl >= 0 else "🟥"
         
-        if state.get("daily_loss_limit_hit"):
-            print(f"   🛑 RISK SAFETY: Daily loss limit reached. Trading paused.")
-        
-        if state.get("should_close_all"):
-            print(f"   ⏰ END OF DAY: Closing all positions now.")
+        print("\n" + "="*80)
+        print(f" {status_emoji} STATUS: {friendly_action.upper()}")
+        print(f" {pnl_emoji} DAILY P&L: ${daily_pnl:+.2f} ({pnl_pct:+.2f}%)  |  EQUITY: ${portfolio_val:,.2f}")
+        print(f" 📊 PORTFOLIO: {len(positions)}/3 Positions  |  {len(signals)} Signals Found")
+        print("="*80)
     
     async def shutdown(self):
         """Gracefully shutdown the scheduler."""
