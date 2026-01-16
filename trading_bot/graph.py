@@ -149,6 +149,8 @@ async def account_sync_node(state: TradingState) -> dict:
     """
     import os
     from alpaca.trading.client import TradingClient
+    from alpaca.trading.requests import GetOrdersRequest
+    from alpaca.trading.enums import QueryOrderStatus, OrderSide
     
     api_key = os.getenv("ALPACA_API_KEY")
     secret_key = os.getenv("ALPACA_SECRET_KEY")
@@ -165,6 +167,49 @@ async def account_sync_node(state: TradingState) -> dict:
         
         # Get positions
         alpaca_positions = client.get_all_positions()
+
+        # Get open orders to match with positions
+        try:
+            req = GetOrdersRequest(status=QueryOrderStatus.OPEN)
+            open_orders = client.get_orders(filter=req)
+        except Exception as e:
+            print(f"   ⚠️  Warning: Could not fetch open orders: {e}")
+            open_orders = []
+
+        
+        # Helper to find stop/limit orders for a symbol
+        def find_order_levels(symbol, side, entry_price):
+            stop_price = None
+            limit_price = None
+            
+            # Filter orders for this symbol
+            # Note: Alpaca order objects have attributes, not dict access
+            symbol_orders = [o for o in open_orders if o.symbol == symbol]
+            
+            for o in symbol_orders:
+                # If we are LONG, Stop Loss is a SELL Stop order
+                if side == 'long' and o.side == OrderSide.SELL:
+                    if o.order_type == 'stop':
+                        stop_price = float(o.stop_price)
+                    elif o.order_type == 'limit':
+                        limit_price = float(o.limit_price)
+                # If we are SHORT, Stop Loss is a BUY Stop order
+                elif side == 'short' and o.side == OrderSide.BUY:
+                    if o.order_type == 'stop':
+                        stop_price = float(o.stop_price)
+                    elif o.order_type == 'limit':
+                        limit_price = float(o.limit_price)
+            
+            # Default to config calculations if no orders found
+            if stop_price is None:
+                if side == 'long': stop_price = entry_price * (1 - DEFAULT_CONFIG.stop_loss_pct)
+                else: stop_price = entry_price * (1 + DEFAULT_CONFIG.stop_loss_pct)
+            
+            if limit_price is None:
+                if side == 'long': limit_price = entry_price * (1 + DEFAULT_CONFIG.take_profit_pct)
+                else: limit_price = entry_price * (1 - DEFAULT_CONFIG.take_profit_pct)
+                
+            return stop_price, limit_price
         
         # Convert to list of dicts
         positions = []
@@ -176,14 +221,8 @@ async def account_sync_node(state: TradingState) -> dict:
             pl = float(p.unrealized_pl)
             pl_pct = float(p.unrealized_plpc) * 100
             
-            # Re-calculate stops based on strategy rules (since we don't store them externally)
-            # Long positions only for now
-            if p.side == 'long':
-                stop = entry * (1 - DEFAULT_CONFIG.stop_loss_pct)
-                target = entry * (1 + DEFAULT_CONFIG.take_profit_pct)
-            else:
-                stop = entry * (1 + DEFAULT_CONFIG.stop_loss_pct)
-                target = entry * (1 - DEFAULT_CONFIG.take_profit_pct)
+            # Determine effective Stop/Target from actual orders or defaults
+            stop, target = find_order_levels(p.symbol, p.side, entry)
 
             positions.append({
                 "symbol": p.symbol,
