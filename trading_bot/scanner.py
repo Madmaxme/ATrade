@@ -86,84 +86,61 @@ def get_sp500_tickers() -> List[str]:
 # SCANNER LOGIC
 # =============================================================================
 
-# =============================================================================
-# SCANNER LOGIC (RSI MEAN REVERSION)
-# =============================================================================
+from trading_bot.config import TradingConfig, DEFAULT_CONFIG
+
+# ... (dataclass and imports)
 
 def calculate_rsi(prices: pd.Series, period: int = 2) -> pd.Series:
     """Calculate Relative Strength Index (RSI)."""
     delta = prices.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    
     rs = gain / loss
     return 100 - (100 / (1 + rs))
 
 def detect_rsi_signal(df: pd.DataFrame, rsi_col: str = 'RSI_2') -> Optional[str]:
     """Detect RSI Mean Reversion Signals."""
-    if len(df) < 2:
-        return None
-    
+    if len(df) < 2: return None
     today = df.iloc[-1]
-    
-    if pd.isna(today[rsi_col]):
-        return None
-    
-    # RSI < 10 (or 20) -> Extreme Oversold -> BUY DIP
+    if pd.isna(today[rsi_col]): return None
     if today[rsi_col] < 15: 
         return 'BUY'
-    
-    # RSI > 90 (or 80) -> Extreme Overbought -> SELL RIP
-    # if today[rsi_col] > 90:
-    #     return 'SELL'
-    
     return None
 
-def analyze_stock(ticker: str, df: pd.DataFrame, sma_period: int = 21) -> Optional[Signal]:
+def analyze_stock(ticker: str, df: pd.DataFrame, config: TradingConfig = DEFAULT_CONFIG) -> Optional[Signal]:
     """Analyze a single stock for RSI Mean Reversion signals."""
-    if len(df) < 30:
-        return None
-    
+    if len(df) < 50: return None
     df = df.copy()
     
     # Calculate Indicators
     df['RSI_2'] = calculate_rsi(df['Close'], period=2)
-    df['SMA_200'] = df['Close'].rolling(window=200).mean() # Trend filter
+    df['trend_sma'] = df['Close'].rolling(window=200).mean()
     
     signal_type = detect_rsi_signal(df)
     
     if signal_type:
         current_price = df['Close'].iloc[-1]
-        
-        # Trend Filter: Only Buy Dips in an Uptrend
-        if not pd.isna(df['SMA_200'].iloc[-1]) and current_price < df['SMA_200'].iloc[-1]:
-             return None # Skip if stock is in long term downtrend
+        if not pd.isna(df['trend_sma'].iloc[-1]) and current_price < df['trend_sma'].iloc[-1]:
+             return None 
              
-        sma_value = df['SMA_200'].iloc[-1] if not pd.isna(df['SMA_200'].iloc[-1]) else current_price
+        sma_value = df['trend_sma'].iloc[-1] if not pd.isna(df['trend_sma'].iloc[-1]) else current_price
         volume = df['Volume'].iloc[-1]
         avg_volume = df['Volume'].tail(20).mean()
         daily_change = ((df['Close'].iloc[-1] / df['Close'].iloc[-2]) - 1) * 100
-        
         rsi_val = df['RSI_2'].iloc[-1]
-        
-        # We repurpose 'pct_from_sma' to store RSI value for the agent prompt
-        # The agent expects pct_from_sma, so we hack it for now or update prompt.
-        # Let's keep pct_from_sma as actual dist from SMA200 for context.
         pct_from_sma = ((current_price - sma_value) / sma_value) * 100
 
         return Signal(
             symbol=ticker,
             signal_type=signal_type,
             price=float(current_price),
-            sma=float(rsi_val), # Storing RSI in 'sma' field for display hack
+            sma=float(rsi_val), 
             pct_from_sma=float(pct_from_sma),
             volume_ratio=float(volume / avg_volume) if avg_volume > 0 else 0.0,
             daily_change_pct=float(daily_change),
             timestamp=datetime.now()
         )
-    
     return None
-
 
 # =============================================================================
 # DATA FETCHING
@@ -172,7 +149,6 @@ def analyze_stock(ticker: str, df: pd.DataFrame, sma_period: int = 21) -> Option
 async def fetch_data_yahoo(tickers: List[str]) -> dict:
     """Fetch data from Yahoo Finance."""
     data = {}
-    
     for ticker in tickers:
         try:
             stock = yf.Ticker(ticker)
@@ -181,90 +157,41 @@ async def fetch_data_yahoo(tickers: List[str]) -> dict:
                 data[ticker] = df
         except Exception as e:
             print(f"   ❌ Error fetching {ticker} from Yahoo: {e}")
-            continue
-    
-    print(f"   ✓ Market data download complete ({len(data)} stocks)")
-    
     return data
-
 
 async def fetch_data_alpaca(tickers: List[str], api_key: str, secret_key: str) -> dict:
     """Fetch data from Alpaca."""
     client = StockHistoricalDataClient(api_key, secret_key)
-    
-    # Alpaca expects dots for classes (e.g., BRK.B), not dashes
-    tickers = [t.replace('-', '.') for t in tickers]
-    
+    tickers_alpaca = [t.replace('-', '.') for t in tickers]
     end_date = datetime.now()
     start_date = end_date - timedelta(days=45)
-    
     data = {}
     chunk_size = 50
-    
-    for i in range(0, len(tickers), chunk_size):
-        chunk = tickers[i:i + chunk_size]
-        print(f"   Downloading market data: Part {i//chunk_size + 1}/{(len(tickers)-1)//chunk_size + 1} ({len(chunk)} stocks)...")
-        
+    for i in range(0, len(tickers_alpaca), chunk_size):
+        chunk = tickers_alpaca[i:i + chunk_size]
         try:
-            request = StockBarsRequest(
-                symbol_or_symbols=chunk,
-                timeframe=TimeFrame.Day,
-                start=start_date,
-                end=end_date,
-                feed=DataFeed.IEX
-            )
-            
+            request = StockBarsRequest(symbol_or_symbols=chunk, timeframe=TimeFrame.Day, start=start_date, end=end_date, feed=DataFeed.IEX)
             bars = client.get_stock_bars(request)
-            
             for symbol in chunk:
                 if symbol in bars.data:
-                    symbol_bars = bars.data[symbol]
-                    df = pd.DataFrame([{
-                        'Open': bar.open,
-                        'High': bar.high,
-                        'Low': bar.low,
-                        'Close': bar.close,
-                        'Volume': bar.volume,
-                    } for bar in symbol_bars])
-                    
+                    df = pd.DataFrame([{'Open': b.open, 'High': b.high, 'Low': b.low, 'Close': b.close, 'Volume': b.volume} for b in bars.data[symbol]])
                     if not df.empty:
-                        data[symbol] = df
-            
-        except Exception as e:
-            print(f"   ❌ Network Issue: Could not fetch signals for chunk {chunk[0]}...: {e}")
+                        # Map back to the original ticker with dash if needed
+                        original_ticker = symbol.replace('.', '-')
+                        data[original_ticker] = df
+        except Exception:
             continue
-    
-    print(f"   ✓ Market Data Ready: loaded {len(data)} stocks")
     return data
 
-
-# =============================================================================
-# MAIN SCAN FUNCTION
-# =============================================================================
-
-async def scan_for_signals(
-    sma_period: int = 21,
-    min_volume_ratio: float = 0.3,
-    min_price: float = 10.0,
-    max_price: float = 500.0,
-    blacklist: List[str] = None
-) -> List[Signal]:
-    """
-    Scan S&P 500 for SMA crossover signals.
-    
-    Returns list of Signal objects sorted by volume ratio.
-    """
+async def scan_for_signals(config: TradingConfig = DEFAULT_CONFIG) -> List[Signal]:
+    """Scan S&P 500 using config-driven parameters."""
     import os
-    
-    blacklist = blacklist or []
-    
-    # Get tickers
     tickers = get_sp500_tickers()
-    tickers = [t for t in tickers if t not in blacklist]
+    tickers = [t for t in tickers if t not in config.blacklist_tickers]
     
     # Fetch data
-    api_key = os.getenv("ALPACA_API_KEY")
-    secret_key = os.getenv("ALPACA_SECRET_KEY")
+    api_key = config.alpaca_api_key
+    secret_key = config.alpaca_secret_key
     
     if ALPACA_DATA_AVAILABLE and api_key and secret_key:
         data = await fetch_data_alpaca(tickers, api_key, secret_key)
@@ -273,29 +200,19 @@ async def scan_for_signals(
     else:
         raise RuntimeError("No data source available")
     
-    # Scan for signals
     signals = []
-    
     print(f"   🔎 Analyzing Market: Checking {len(data)} stocks for opportunities...")
     
     for ticker, df in data.items():
-        signal = analyze_stock(ticker, df, sma_period)
-        
+        signal = analyze_stock(ticker, df, config)
         if signal:
-            # Apply filters
-            if signal.volume_ratio < min_volume_ratio:
-                # print(f"     Skipping {ticker}: Low volume ratio ({signal.volume_ratio:.2f})")
-                continue
-            if signal.price < min_price or signal.price > max_price:
-                # print(f"     Skipping {ticker}: Price out of range (${signal.price:.2f})")
-                continue
+            # Apply filters from Config
+            if signal.volume_ratio < config.min_volume_ratio: continue
+            if signal.price < config.min_stock_price or signal.price > config.max_stock_price: continue
             
             signals.append(signal)
             print(f"   ✨ Potential Opportunity: {ticker} ({signal.signal_type})")
     
-    print(f"   ✅ Scan Complete: Identified {len(signals)} actionable signals.")
-
-    # Sort by volume ratio (highest conviction first)
     signals.sort(key=lambda s: s.volume_ratio, reverse=True)
-    
     return signals
+

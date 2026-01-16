@@ -13,6 +13,42 @@ from typing import List
 class TradingConfig:
     """Configuration for the trading bot."""
     
+    # =========================================================================
+    # VERSIONING (AUTO-STRATEGIC + BUILD)
+    # =========================================================================
+    @property
+    def strategy_id(self) -> str:
+        """
+        Generates a signature based on the ACTUAL CODE in your strategy files.
+        If you change the prompts or the backtest math, this ID changes.
+        """
+        import hashlib
+        try:
+            # The core files that define "how" we trade
+            logic_files = ['prompts.py', 'quant_lab.py', 'scanner.py']
+            hasher = hashlib.md5()
+            
+            for f_name in logic_files:
+                # Find the file relative to this config file
+                path = os.path.join(os.path.dirname(__file__), f_name)
+                if os.path.exists(path):
+                    with open(path, 'rb') as f:
+                        hasher.update(f.read())
+            
+            # Also include the core config numbers
+            hasher.update(str([self.max_positions, self.stop_loss_pct]).encode())
+            
+            return f"logic-{hasher.hexdigest()[:4]}"
+        except Exception as e:
+            return "logic-error"
+    
+    @property
+    def version(self) -> str:
+        # Build a version string like "logic-a1b2-rev-c3d4e5f"
+        sha = os.getenv("RAILWAY_GIT_COMMIT_SHA")
+        build_id = f"rev-{sha[:5]}" if sha else "dev"
+        return f"{self.strategy_id}-{build_id}"
+    
     def get_now_et(self):
         """Get current time in Eastern Timezone (robust)."""
         import pytz

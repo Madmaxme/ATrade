@@ -289,6 +289,7 @@ TRADES EXECUTED:"""
                 date=today.strftime('%Y-%m-%d'),
                 config_used=config_snapshot,
                 champion_stock=champion,
+                system_version=self.config.version, # Track evolution!
                 optimization_data=opt_data, # NEW: Agent's Brain Output
                 start_equity=start_equity,
                 end_equity=end_equity,

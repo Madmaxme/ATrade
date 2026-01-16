@@ -22,6 +22,7 @@ class DailyEpisode:
     # The 'Action' (What strategy/config we used)
     config_used: Dict[str, Any]
     champion_stock: str
+    system_version: str = "1.0" # Default for legacy episodes
     
     # The 'Reward' (Outcome)
     start_equity: float
@@ -101,28 +102,37 @@ class TradingMemory:
 
     def get_learning_context(self) -> str:
         """
-        Analyze the entire memory to find patterns. 
-        This is the 'Retrieval' part of RAG for the Agent.
+        Analyze memory to find patterns, specifically regarding version evolution.
         """
         if not self.episodes:
-            return ""
+            return "No past trading episodes found. This is a fresh system."
             
-        wins = [ep for ep in self.episodes if ep.win]
+        # Group by 'Strategy Version' (the part before the first dash)
+        # e.g. "1.1-rev-abc" -> "1.1"
+        def get_strat(v_str): return v_str.split('-')[0]
         
-        # New: Analyze Quant Lab Performance
-        optimized_wins = [ep for ep in wins if ep.optimization_data]
-        optimized_count = len([ep for ep in self.episodes if ep.optimization_data])
+        current_strat = get_strat(self.episodes[-1].system_version)
         
-        opt_win_rate = 0
-        if optimized_count > 0:
-            opt_win_rate = len(optimized_wins) / optimized_count * 100
+        v_episodes = [ep for ep in self.episodes if get_strat(ep.system_version) == current_strat]
+        legacy_episodes = [ep for ep in self.episodes if get_strat(ep.system_version) != current_strat]
         
-        win_rate = len(wins) / len(self.episodes) * 100 if self.episodes else 0
+        v_wins = [ep for ep in v_episodes if ep.win]
+        v_win_rate = (len(v_wins) / len(v_episodes) * 100) if v_episodes else 0
         
-        return f"""
-MEMORY INSIGHTS:
-- Total Days Tracked: {len(self.episodes)}
-- Win Rate: {win_rate:.1f}%
-- Quant Lab Usage: {optimized_count} times (Win Rate: {opt_win_rate:.1f}%)
-- Last 3 Trades: {' '.join(['WIN' if ep.win else 'LOSS' for ep in self.episodes[-3:]])}
+        legacy_win_rate = 0
+        if legacy_episodes:
+            legacy_wins = [ep for ep in legacy_episodes if ep.win]
+            legacy_win_rate = len(legacy_wins) / len(legacy_episodes) * 100
+
+        summary = f"""
+🧠 MEMORY INSIGHTS:
+- Current Strategy Logic: v{current_strat}
+- Performance on this logic: {v_win_rate:.1f}% win rate over {len(v_episodes)} days.
+- Legacy Performance (Older Logic): {legacy_win_rate:.1f}% win rate over {len(legacy_episodes)} days.
 """
+        if v_win_rate > legacy_win_rate and legacy_episodes:
+            summary += "- ANALYSIS: Current version is OUTPERFORMING legacy code. Keep current configuration.\n"
+        elif v_win_rate < legacy_win_rate and legacy_episodes:
+            summary += "- ANALYSIS: Current version is UNDERPERFORMING legacy code. Consider reverting major changes.\n"
+            
+        return summary

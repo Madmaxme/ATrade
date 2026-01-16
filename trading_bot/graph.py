@@ -218,47 +218,41 @@ async def agent_node(state: TradingState, trading_config: TradingConfig, model: 
     # Bind tools to model
     model_with_tools = model.bind_tools(tools)
     
-    # Filter signals if at capacity to prevent wasting cycles on impossible trades
-    # NOTE: With the new tool-based scanning, the agent decides when to scan.
-    # However, if there ARE signals in the state (leftover), we might still want to show them.
     scan_signals = state.get('signals', [])
     current_positions = state.get('positions', [])
-
-    # Build context message
-    # Use robust time conversion from config
     now_et = trading_config.get_now_et()
     
+    # Generate the DYNAMIC system prompt
+    from trading_bot.prompts import get_trader_system_prompt
+    system_prompt = get_trader_system_prompt(trading_config)
     
     # helper for signals display
     signals_text = _format_signals(scan_signals)
     
+    # NEW: Fetch Memory Insights
+    from trading_bot.memory import TradingMemory
+    memory = TradingMemory(data_dir=trading_config.data_dir)
+    memory_context = memory.get_learning_context()
+    
     context = f"""
 Current Time: {now_et.strftime('%Y-%m-%d %H:%M:%S ET')}
-Market Open: {state.get('is_market_open', False)}
+Market Status: {'OPEN' if state.get('is_market_open') else 'CLOSED'}
 Should Close All: {state.get('should_close_all', False)}
-Daily Loss Limit Hit: {state.get('daily_loss_limit_hit', False)}
+
+{memory_context}
 
 Account Status:
 - Buying Power: ${state.get('buying_power', 0):,.2f}
 - Portfolio Value: ${state.get('portfolio_value', 0):,.2f}
-- Daily P&L: ${state.get('daily_pnl', 0):,.2f}
+- Daily P&L: ${state.get('daily_pnl', 0):,.2f} (Max Loss: {trading_config.max_daily_loss_pct*100:.1f}%)
 
-Open Positions ({len(current_positions)}):
+Open Positions ({len(current_positions)}/{trading_config.max_positions}):
 {_format_positions(current_positions)}
 
-New/Existing Signals (from previous scans):
+New/Existing Signals:
 {signals_text}
 
-Based on the above, decide what action to take. You can:
-1. Enter new positions (if signals are good and we have capacity)
-2. Exit positions (if stop/target hit or should close all)
-3. Do nothing (if no good opportunities)
-
-IMPORTANT:
-- If you just decided to HOLD or SKIP, do NOT call `format_trade_log`. Just state your decision.
-- Only call `format_trade_log` when you actually EXECUTE a trade (Buy/Sell).
-
-Think step by step about risk management before acting.
+Analyze the situation and decide.
 """
     
     # helper to construct messages
@@ -290,21 +284,14 @@ Think step by step about risk management before acting.
     # If we updated history, we must return it in the final dict (LangGraph merges updates)
     # logic is handled at return statement, but we need to pass this state to return
     
-    new_messages = []
+    # Add system prompt and current context as a user message
+    new_messages_for_model = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=context)
+    ]
     
-    # Add system prompt if this is the start of conversation
-    if not messages_state:
-        # Note: TRADER_SYSTEM_PROMPT is imported at top level
-        new_messages.append(SystemMessage(content=TRADER_SYSTEM_PROMPT))
-    
-    # Add the current context as a user message
-    # IMPORTANT: We must persist this message to state so the history is valid
-    # (previous turns must have User -> Model structure)
-    human_msg = HumanMessage(content=context)
-    new_messages.append(human_msg)
-    
-    # Combine for model input
-    messages_input = messages_state + new_messages
+    # Combine for model input, including previous messages
+    messages_input = messages_state + new_messages_for_model
     
     response = await model_with_tools.ainvoke(messages_input)
 
@@ -340,7 +327,7 @@ Think step by step about risk management before acting.
 
     # Return both the new user message(s) and the response to be saved to state
     return {
-        "messages": new_messages + [response],
+        "messages": new_messages_for_model + [response],
         "current_action": "agent_decided",
         "optimization_history": opt_history # Persist updated history
     }
