@@ -214,11 +214,10 @@ class TradingScheduler:
             # Initialize Memory with persistent path
             memory = TradingMemory(data_dir=self.config.data_dir)
              
-            # ... (rest of function)
-
             client = TradingClient(self.config.alpaca_api_key, self.config.alpaca_secret_key, paper=self.config.paper_trading)
             acct = client.get_account()
             end_equity = float(acct.equity)
+
             
             # Get filled orders from today
             today = self._get_et_time().date()

@@ -1,15 +1,61 @@
+import logging
+import pandas as pd
+import numpy as np
+import yfinance as yf
+import json
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
 from trading_bot.config import DEFAULT_CONFIG
 
-# ... (rest of imports)
+# Setup logger
+logger = logging.getLogger("QuantLab")
 
 class QuantLab:
     def __init__(self, config=DEFAULT_CONFIG):
         self.config = config
         self.cache = {} 
-
-    # ... (get_history stays same)
+    
+    def get_history(self, symbol: str, days: int = 365) -> pd.DataFrame:
+        """
+        Fetch historical data for a symbol.
+        Uses yfinance for broad coverage. 
+        """
+        yf_symbol = symbol.replace('.', '-') # Ensure Yahoo format
+        
+        if yf_symbol in self.cache:
+            return self.cache[yf_symbol]
+            
+        try:
+            # Download with buffer
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days + 50) # +50 for SMA warmup
+            
+            df = yf.download(yf_symbol, start=start_date, end=end_date, progress=False, interval="1d")
+            
+            if df.empty:
+                return pd.DataFrame()
+            
+            # Normalize columns
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.droplevel(1)
+                
+            # Rename to standard internal format
+            df = df.rename(columns={
+                "Open": "open", "High": "high", "Low": "low", "Close": "close", "Volume": "volume"
+            })
+            
+            # Fill missing
+            df = df.interpolate(method='linear')
+            
+            self.cache[yf_symbol] = df
+            return df
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch history for {symbol}: {e}")
+            return pd.DataFrame()
 
     def run_backtest(self, symbol: str, rsi_threshold: int, stop_loss_pct: float, take_profit_pct: float, days: int = 180) -> Dict:
+
         """
         Fast backtest of RSI Mean Reversion strategy.
         Strategy: Buy if RSI < Threshold. Sell if Target/Stop hit OR RSI > 70.
