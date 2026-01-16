@@ -258,50 +258,53 @@ Analyze the situation and decide.
     # helper to construct messages
     messages_state = state.get("messages", [])
     
-    # NEW: Capture Optimization Data from Tool Outputs
-    # We scan recent messages for "find_best_settings_tool" outputs
-    opt_history = state.get("optimization_history", {}) or {}
-    history_updated = False
-    
+    # Prune old context messages to prevent token bloat (fix for 429 errors)
+    # We remove previous "Current Time:" human messages and system prompts 
+    # to keep only tool interactions + the LATEST state.
+    clean_history = []
     for msg in messages_state:
+        # Filter out previous system messages or context updates
+        if isinstance(msg, SystemMessage):
+            continue
+        if isinstance(msg, HumanMessage) and "Current Time:" in msg.content:
+            continue
+        clean_history.append(msg)
+    
+    # Cap total history to prevent token explosion
+    if len(clean_history) > 15:
+        clean_history = clean_history[-15:]
+    
+    # NEW: Capture Optimization Data from Tool Outputs
+    # (Existing logic to extract data)
+    opt_history = state.get("optimization_history", {}) or {}
+    for msg in clean_history:
         if isinstance(msg, ToolMessage) and msg.name == "find_best_settings_tool":
-            content = msg.content
-            if "OPTIMIZATION RESULT" in content:
-                try:
-                    import json
-                    # Attempt to parse
-                    data = json.loads(content)
-                    if isinstance(data, dict) and "data" in data:
-                        raw = data["data"]
-                        symbol = raw.get("symbol")
-                        if symbol:
-                            opt_history[symbol] = raw
-                            history_updated = True
-                except:
-                    # Fallback if text format
-                    pass
+            try:
+                import json
+                data = json.loads(msg.content)
+                if isinstance(data, dict) and "data" in data:
+                    raw = data["data"]
+                    symbol = raw.get("symbol")
+                    if symbol:
+                        opt_history[symbol] = raw
+            except:
+                pass
     
-    # If we updated history, we must return it in the final dict (LangGraph merges updates)
-    # logic is handled at return statement, but we need to pass this state to return
-    
-    # Add system prompt and current context as a user message
-    new_messages_for_model = [
+    # Construct input with NEW system prompt and FRESH context
+    messages_input = [
         SystemMessage(content=system_prompt),
         HumanMessage(content=context)
     ]
     
-    # Combine for model input, including previous messages
-    messages_input = messages_state + new_messages_for_model
+    # Append the recent tool interaction history
+    messages_input.extend(clean_history)
     
     response = await model_with_tools.ainvoke(messages_input)
 
+
     # Debug logging for user transparency
-    if response.tool_calls:
-        tool_names = [t['name'] for t in response.tool_calls]
-        print(f"   🤖 Agent Action: Calling {len(tool_names)} tools: {', '.join(tool_names)}")
-    elif response.content:
-        # Extract text content
-        content_str = ""
+    content_str = ""
+    if response.content:
         if isinstance(response.content, list):
              for block in response.content:
                  if isinstance(block, dict) and block.get("type") == "text":
@@ -311,18 +314,22 @@ Analyze the situation and decide.
         else:
              content_str = str(response.content)
 
-        # Print a clean, structured box for thoughts
+    if content_str.strip():
         import re
-        # Remove markdown bold/italic and redundant prefixes
         t_clean = content_str.strip()
-        t_clean = re.sub(r'\*\*|\*|#', '', t_clean) # Remove **bold**, *italic*, and #headers
+        t_clean = re.sub(r'\*\*|\*|#', '', t_clean)
         t_clean = re.sub(r'^(Agent Thought:?|Thought:?)', '', t_clean, flags=re.IGNORECASE).strip()
-        thoughts = t_clean
-        print("\n   ┌─── AGENT THOUGHT ──────────────────────────────────────────────────")
-        for line in thoughts.split('\n'):
-            if line.strip():
-                print(f"   │ {line.strip()}")
-        print("   └────────────────────────────────────────────────────────────────────")
+        if t_clean:
+            print("\n   ┌─── AGENT THOUGHT ──────────────────────────────────────────────────")
+            for line in t_clean.split('\n'):
+                if line.strip():
+                    print(f"   │ {line.strip()}")
+            print("   └────────────────────────────────────────────────────────────────────")
+
+    if response.tool_calls:
+        tool_names = [t['name'] for t in response.tool_calls]
+        print(f"   🤖 Agent Action: Calling {len(tool_names)} tools: {', '.join(tool_names)}")
+
     
     # Check for repetitive log calls to avoid loops
     if response.tool_calls:
@@ -330,9 +337,9 @@ Analyze the situation and decide.
         # logic to handle repetitive log calls if needed in future
         pass
 
-    # Return both the new user message(s) and the response to be saved to state
+    # Return both the fresh context update and the AI response
     return {
-        "messages": new_messages_for_model + [response],
+        "messages": [HumanMessage(content=context), response],
         "current_action": "agent_decided",
         "optimization_history": opt_history # Persist updated history
     }
