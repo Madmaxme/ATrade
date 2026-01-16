@@ -259,7 +259,7 @@ TRADES EXECUTED:"""
                     qty = o.qty
                     report += f"\n- {o.filled_at.strftime('%H:%M')} {side} {o.symbol}: {qty} shares @ ${price:.2f}"
 
-            report += "\\n\\nNOTES:\\n(Auto-generated)\\n================================================================================\\n\\n"
+            report += "\n\nNOTES:\n(Auto-generated)\n================================================================================\n\n"
             
             # Append to file in persistent directory
             journal_path = os.path.join(self.config.data_dir, "daily_journal.txt")
