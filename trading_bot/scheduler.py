@@ -142,6 +142,8 @@ class TradingScheduler:
             "daily_loss_limit_hit": False,
             "perform_scan": True,  # Always scan on startup
             "current_action": None,
+            "agent_narrative": None,
+            "optimization_history": {},
             "last_error": None,
         }
         
@@ -284,6 +286,9 @@ TRADES EXECUTED:"""
                      # Filter only for stocks we actually traded to save space
                      opt_data = {k: v for k, v in full_history.items() if k in traded_symbols}
 
+            # --- 3. ASK THE AGENT FOR A REFLECTION ---
+            ai_notes = await self._get_reflection(pnl_pct, champion, today_orders)
+
             episode = DailyEpisode(
                 date=today.strftime('%Y-%m-%d'),
                 config_used=config_snapshot,
@@ -294,6 +299,7 @@ TRADES EXECUTED:"""
                 end_equity=end_equity,
                 pnl=pnl,
                 pnl_pct=pnl_pct,
+                notes=ai_notes,
                 win=(pnl > 0)
             )
             
@@ -301,6 +307,32 @@ TRADES EXECUTED:"""
             
         except Exception as e:
             print(f"   ❌ Failed to save daily report/memory: {e}")
+
+    async def _get_reflection(self, pnl_pct: float, champion: str, orders: list) -> str:
+        """Ask the LLM to provide a one-sentence reflection on the day's performance."""
+        try:
+            from langchain_core.messages import HumanMessage
+            
+            order_summary = ", ".join([f"{o.side} {o.symbol}" for o in orders[:5]])
+            prompt = f"""
+            Summarize today's trading in ONE short sentence for your future self. 
+            Result: {pnl_pct:+.2f}% | Top Stocks: {champion} | Trades: {order_summary}
+            Focus on WHY this happened (e.g. 'Caught a great morning spike' or 'Stubbornly held a loser').
+            Keep it under 150 characters.
+            """
+            
+            # Use the graph directly to get a quick response
+            response = await self.graph.ainvoke(
+                {"messages": [HumanMessage(content=prompt)]},
+                {"configurable": {"thread_id": "reflection_check"}}
+            )
+            
+            content = response.get("messages", [])[-1].content
+            return str(content).strip()[:200]
+            
+        except Exception as e:
+            return f"(Auto-generated: No reflection captured {e})"
+
 
     async def _wait_for_market(self):
         """Wait for market to open."""

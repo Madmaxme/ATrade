@@ -79,6 +79,9 @@ class TradingState(TypedDict):
     # Current action being taken
     current_action: Optional[str]
     
+    # NEW: Store a running narrative of the day's strategy
+    agent_narrative: Optional[str]
+    
     # NEW: Store optimization results for end-of-day memory
     # Format: { "AAPL": {"rsi_threshold": 25, ...}, ... }
     optimization_history: Optional[dict]
@@ -252,6 +255,9 @@ Open Positions ({len(current_positions)}/{trading_config.max_positions}):
 New/Existing Signals:
 {signals_text}
 
+Previous Strategy Narrative:
+{state.get('agent_narrative', 'No previous narrative. This is a fresh check.')}
+
 Analyze the situation and decide.
 """
     
@@ -341,6 +347,7 @@ Analyze the situation and decide.
     return {
         "messages": [HumanMessage(content=context), response],
         "current_action": "agent_decided",
+        "agent_narrative": t_clean[:500] if t_clean else state.get("agent_narrative"),
         "optimization_history": opt_history # Persist updated history
     }
 

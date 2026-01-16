@@ -94,7 +94,8 @@ class TradingMemory:
         summary = "RECENT TRADING HISTORY:\n"
         for ep in recent:
             emoji = "✅" if ep.win else "❌"
-            summary += f"- {ep.date}: {emoji} {ep.champion_stock} ({ep.pnl_pct:+.2f}%)\n"
+            note_snip = f" | Note: {ep.notes[:100]}..." if ep.notes and ep.notes != "(Auto-generated)" else ""
+            summary += f"- {ep.date}: {emoji} {ep.champion_stock} ({ep.pnl_pct:+.2f}%){note_snip}\n"
         
         return summary
 
@@ -125,10 +126,18 @@ class TradingMemory:
             legacy_wins = [ep for ep in legacy_episodes if ep.win]
             legacy_win_rate = len(legacy_wins) / len(legacy_episodes) * 100
 
+        # Build detailed history list for current version
+        v_history = ""
+        for ep in v_episodes[-3:]: # Last 3 days of current logic
+            note = f" | Note: {ep.notes[:100]}" if ep.notes and ep.notes != "(Auto-generated)" else ""
+            v_history += f"  * {ep.date}: {ep.pnl_pct:+.2f}% {note}\n"
+
         summary = f"""
 🧠 MEMORY INSIGHTS:
-- Current Strategy Logic: v{current_strat}
+- Current Strategy Logic: {current_strat}
 - Performance on this logic: {v_win_rate:.1f}% win rate over {len(v_episodes)} days.
+- Recent Days (This Logic):
+{v_history}
 - Legacy Performance (Older Logic): {legacy_win_rate:.1f}% win rate over {len(legacy_episodes)} days.
 """
         if v_win_rate > legacy_win_rate and legacy_episodes:
