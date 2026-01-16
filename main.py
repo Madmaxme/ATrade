@@ -54,7 +54,9 @@ async def main():
         raise ValueError("ALPACA_SECRET_KEY not set")
     
     print(f"\n  Status: {'🟢 PAPER TRADING (Safe Mode)' if config.paper_trading else '⚠️  LIVE TRADING (Real Money)'}")
-    print(f"  Configuration: Max {config.max_positions} positions | Risk {config.max_daily_loss_pct}% daily")
+    print(f"  Version: {config.version}")
+    print(f"  Logic Hash: {config.strategy_id}")
+    print(f"  Configuration: Max {config.max_positions} positions | Risk {config.max_daily_loss_pct*100:.1f}% daily")
     print("\n" + "=" * 60)
     
     # Create the trading graph

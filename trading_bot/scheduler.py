@@ -354,7 +354,8 @@ TRADES EXECUTED:"""
         print("\n" + "="*80)
         print(f" {status_emoji} STATUS: {friendly_action.upper()}")
         print(f" {pnl_emoji} DAILY P&L: ${daily_pnl:+.2f} ({pnl_pct:+.2f}%)  |  EQUITY: ${portfolio_val:,.2f}")
-        print(f" 📊 PORTFOLIO: {len(positions)}/3 Positions  |  {len(signals)} Signals Found")
+        print(f" 📊 PORTFOLIO: {len(positions)}/{self.config.max_positions} Positions  |  {len(signals)} Signals Found")
+        print(f" 🏷️ VERSION: {self.config.version}")
         print("="*80)
     
     async def shutdown(self):
