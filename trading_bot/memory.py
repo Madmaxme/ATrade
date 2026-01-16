@@ -79,9 +79,9 @@ class TradingMemory:
             print(f"   ❌ Failed to save memory: {e}")
 
     def record_episode(self, episode: DailyEpisode):
-        """Add a new day's experience to the memory."""
-        # Remove existing entry for same date if exists (overwrite)
-        self.episodes = [ep for ep in self.episodes if ep.date != episode.date]
+        """Add a new day's experience to the memory. Overwrites only if date AND version match."""
+        # Remove existing entry for same date AND same version if exists
+        self.episodes = [ep for ep in self.episodes if not (ep.date == episode.date and ep.system_version == episode.system_version)]
         self.episodes.append(episode)
         self.save_memory()
 
@@ -98,18 +98,21 @@ class TradingMemory:
         
         return summary
 
-    def get_learning_context(self) -> str:
+    def get_learning_context(self, current_version: str = None) -> str:
         """
         Analyze memory to find patterns, specifically regarding version evolution.
         """
         if not self.episodes:
             return "No past trading episodes found. This is a fresh system."
             
-        # Group by 'Strategy Version' (the part before the first dash)
-        # e.g. "1.1-rev-abc" -> "1.1"
-        def get_strat(v_str): return v_str.split('-')[0]
+        def get_strat(v_str): 
+            if not v_str or '-' not in v_str: return v_str or "unknown"
+            # Captures 'logic-xxxx' from 'logic-xxxx-rev-yyyy'
+            parts = v_str.split('-')
+            return '-'.join(parts[:2])
         
-        current_strat = get_strat(self.episodes[-1].system_version)
+        # Use the provided version or fall back to the last recorded one
+        current_strat = get_strat(current_version) if current_version else get_strat(self.episodes[-1].system_version)
         
         v_episodes = [ep for ep in self.episodes if get_strat(ep.system_version) == current_strat]
         legacy_episodes = [ep for ep in self.episodes if get_strat(ep.system_version) != current_strat]

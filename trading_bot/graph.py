@@ -232,7 +232,7 @@ async def agent_node(state: TradingState, trading_config: TradingConfig, model: 
     # NEW: Fetch Memory Insights
     from trading_bot.memory import TradingMemory
     memory = TradingMemory(data_dir=trading_config.data_dir)
-    memory_context = memory.get_learning_context()
+    memory_context = memory.get_learning_context(current_version=trading_config.version)
     
     context = f"""
 Current Time: {now_et.strftime('%Y-%m-%d %H:%M:%S ET')}
