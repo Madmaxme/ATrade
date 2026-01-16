@@ -312,7 +312,12 @@ Analyze the situation and decide.
              content_str = str(response.content)
 
         # Print a clean, structured box for thoughts
-        thoughts = content_str.strip()
+        import re
+        # Remove markdown bold/italic and redundant prefixes
+        t_clean = content_str.strip()
+        t_clean = re.sub(r'\*\*|\*', '', t_clean) # Remove **bold** and *italic*
+        t_clean = re.sub(r'^(Agent Thought:?|Thought:?)', '', t_clean, flags=re.IGNORECASE).strip()
+        thoughts = t_clean
         print("\n   ┌─── AGENT THOUGHT ──────────────────────────────────────────────────")
         for line in thoughts.split('\n'):
             if line.strip():
