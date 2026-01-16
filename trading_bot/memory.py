@@ -59,12 +59,12 @@ class TradingMemory:
                         clean_item = {k: v for k, v in item.items() if k in DailyEpisode.__annotations__}
                         clean_episodes.append(DailyEpisode(**clean_item))
                     self.episodes = clean_episodes
-                print(f"   🧠 Memory Loaded: {len(self.episodes)} past trading days.")
+                # print(f"   🧠 Memory Loaded: {len(self.episodes)} past trading days.")
             except Exception as e:
                 print(f"   ⚠️ Memory Corruption: Could not load {self.filepath}: {e}")
                 self.episodes = []
         else:
-            print("   🧠 New Memory Created.")
+            # print("   🧠 New Memory Created.")
             self.episodes = []
 
     def save_memory(self):

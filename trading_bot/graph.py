@@ -315,7 +315,7 @@ Analyze the situation and decide.
         import re
         # Remove markdown bold/italic and redundant prefixes
         t_clean = content_str.strip()
-        t_clean = re.sub(r'\*\*|\*', '', t_clean) # Remove **bold** and *italic*
+        t_clean = re.sub(r'\*\*|\*|#', '', t_clean) # Remove **bold**, *italic*, and #headers
         t_clean = re.sub(r'^(Agent Thought:?|Thought:?)', '', t_clean, flags=re.IGNORECASE).strip()
         thoughts = t_clean
         print("\n   ┌─── AGENT THOUGHT ──────────────────────────────────────────────────")
