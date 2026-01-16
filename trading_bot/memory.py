@@ -22,7 +22,6 @@ class DailyEpisode:
     # The 'Action' (What strategy/config we used)
     config_used: Dict[str, Any]
     champion_stock: str
-    system_version: str = "1.0" # Default for legacy episodes
     
     # The 'Reward' (Outcome)
     start_equity: float
@@ -31,10 +30,9 @@ class DailyEpisode:
     pnl_pct: float
     win: bool
     
-    # Quant Lab Data (New)
-    optimization_data: Optional[Dict] = None # Stores {sma: 10, stop: 0.07, source: "QuantLab"}
-    
-    # The 'Reflection' (Why did this happen?)
+    # Versioning & Extra Data (with defaults at the END)
+    system_version: str = "1.0"
+    optimization_data: Optional[Dict] = None 
     notes: str = ""
 
 
