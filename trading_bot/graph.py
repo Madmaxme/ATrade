@@ -316,8 +316,8 @@ Analyze the situation and decide.
         clean_history.append(msg)
     
     # Cap total history to prevent token explosion
-    if len(clean_history) > 15:
-        clean_history = clean_history[-15:]
+    if len(clean_history) > 8:
+        clean_history = clean_history[-8:]
     
     # NEW: Capture Optimization Data from Tool Outputs
     # (Existing logic to extract data)

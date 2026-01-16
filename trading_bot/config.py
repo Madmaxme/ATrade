@@ -129,7 +129,7 @@ class TradingConfig:
     scan_interval_minutes: int = 5
     
     # How often to check position status (seconds)
-    position_check_interval_seconds: int = 30
+    position_check_interval_seconds: int = 60
     
     # =========================================================================
     # FILTERS
