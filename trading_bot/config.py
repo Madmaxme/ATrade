@@ -25,7 +25,7 @@ class TradingConfig:
         import hashlib
         try:
             # The core files that define "how" we trade
-            logic_files = ['prompts.py', 'quant_lab.py', 'scanner.py']
+            logic_files = ['prompts.py', 'quant_lab.py', 'scanner.py', 'graph.py']
             hasher = hashlib.md5()
             
             for f_name in logic_files:
