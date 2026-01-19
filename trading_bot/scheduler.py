@@ -11,6 +11,7 @@ import pytz
 import json
 
 from langgraph.graph import StateGraph
+from alpaca.trading.client import TradingClient
 
 from trading_bot.config import TradingConfig
 from trading_bot.graph import TradingState
@@ -34,6 +35,13 @@ class TradingScheduler:
         self.et_tz = pytz.timezone('US/Eastern')
         self.running = False
         self._shutdown_event = asyncio.Event()
+        
+        # Initialize Alpaca Client for accurate market clock
+        self.trading_client = TradingClient(
+            config.alpaca_api_key, 
+            config.alpaca_secret_key, 
+            paper=config.paper_trading
+        )
     
     def _get_et_time(self) -> datetime:
         """Get current time in Eastern timezone."""
@@ -45,18 +53,17 @@ class TradingScheduler:
         return time(int(parts[0]), int(parts[1]))
     
     def is_market_open(self) -> bool:
-        """Check if market is currently open."""
-        now = self._get_et_time()
-        
-        # Check if weekday
-        if now.weekday() >= 5:  # Saturday = 5, Sunday = 6
+        """
+        Check if market is currently open using Alpaca's Clock API.
+        This dynamically handles weekends, holidays, and early closures.
+        """
+        try:
+            clock = self.trading_client.get_clock()
+            return clock.is_open
+        except Exception as e:
+            print(f"   ⚠️ Market Status Check Failed (API): {e}")
+            # Fallback to safe "Closed" state if API fails
             return False
-        
-        market_open = self._parse_time(self.config.market_open)
-        market_close = self._parse_time(self.config.market_close)
-        current_time = now.time()
-        
-        return market_open <= current_time <= market_close
     
     def should_close_positions(self) -> bool:
         """Check if we should close all positions."""
@@ -65,33 +72,21 @@ class TradingScheduler:
         return now.time() >= close_time
     
     def time_until_market_open(self) -> Optional[float]:
-        """Calculate seconds until market opens."""
-        now = self._get_et_time()
-        
-        # If weekend, calculate to Monday
-        days_ahead = 0
-        if now.weekday() == 5:  # Saturday
-            days_ahead = 2
-        elif now.weekday() == 6:  # Sunday
-            days_ahead = 1
-        
-        market_open = self._parse_time(self.config.market_open)
-        target = now.replace(
-            hour=market_open.hour,
-            minute=market_open.minute,
-            second=0,
-            microsecond=0
-        )
-        
-        if days_ahead > 0:
-            target = target + timedelta(days=days_ahead)
-        elif now.time() > market_open:
-            # Market already opened today, wait for tomorrow
-            target = target + timedelta(days=1)
-            if target.weekday() == 5:  # Skip to Monday
-                target = target + timedelta(days=2)
-        
-        return (target - now).total_seconds()
+        """Calculate seconds until market opens using Alpaca's Clock API."""
+        try:
+            clock = self.trading_client.get_clock()
+            if clock.is_open:
+                return 0
+            
+            # Calculate diff from now (aware) to next_open (aware)
+            now = datetime.now(clock.next_open.tzinfo)
+            diff = (clock.next_open - now).total_seconds()
+            
+            return max(0, diff)
+            
+        except Exception as e:
+            print(f"   ⚠️ Time-Check Failed: {e}")
+            return 60 # Default to 1-minute retry wait
     
     async def run(self):
         """Main run loop for the trading bot."""
