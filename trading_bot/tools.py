@@ -15,6 +15,19 @@ from trading_bot.config import TradingConfig
 # MCP CLIENT SETUP
 # =============================================================================
 
+# Redirect MCP logs to stdout so Railway doesn't treat them as errors (stderr)
+import logging
+import sys
+
+# Configure only if not already configured to avoid interfering with global config
+mcp_logger = logging.getLogger("mcp")
+if not mcp_logger.handlers:
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('%(message)s')) # Clean format
+    mcp_logger.addHandler(handler)
+    mcp_logger.setLevel(logging.INFO)
+    mcp_logger.propagate = False # Stop bubbling up to root logger (which might use stderr)
+
 _mcp_client = None
 
 
