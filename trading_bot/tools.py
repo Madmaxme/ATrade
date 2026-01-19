@@ -15,22 +15,38 @@ from trading_bot.config import TradingConfig
 # MCP CLIENT SETUP
 # =============================================================================
 
-# NUCLEAR FIX: Redirect STDERR to STDOUT at the OS file descriptor level.
-# This ensures that EVERYTHING (Python logs, Subprocess logs, C libraries)
-# that writes to stderr will now go to stdout.
-# Railway will see these as INFO (White), not ERROR (Red).
 import sys
-import os
 
-try:
-    # Only redirect if not already redirected (sanity check)
-    if sys.stderr.fileno() != sys.stdout.fileno():
-        sys.stderr.flush()
-        # Redirect fd 2 (stderr) to fd 1 (stdout)
-        os.dup2(sys.stdout.fileno(), sys.stderr.fileno())
-except Exception as e:
-    # Use print since stderr might be compromised
-    print(f"Log redirection warning: {e}")
+class SmartStderrFilter:
+    """
+    Filter that intercepts writes to stderr.
+    If the text looks like an innocuous MCP log, redirect it to stdout.
+    Otherwise (e.g. tracebacks, real errors), let it go to real stderr.
+    """
+    def __init__(self, original_stderr, original_stdout):
+        self.original_stderr = original_stderr
+        self.original_stdout = original_stdout
+
+    def write(self, s):
+        # Keywords that appear in the noisy logs
+        # Example: {"message":"Processing request of type CallToolRequest"...}
+        if "CallToolRequest" in s or "ListToolsRequest" in s:
+            self.original_stdout.write(s)
+        else:
+            self.original_stderr.write(s)
+
+    def flush(self):
+        self.original_stderr.flush()
+        self.original_stdout.flush()
+        
+    def fileno(self):
+        # Some libraries might need this
+        return self.original_stderr.fileno()
+
+# Install the filter
+# We check if we are already wrapping to avoid double-wrap on reloads
+if not isinstance(sys.stderr, SmartStderrFilter):
+    sys.stderr = SmartStderrFilter(sys.stderr, sys.stdout)
 
 _mcp_client = None
 
