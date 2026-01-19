@@ -19,14 +19,27 @@ from trading_bot.config import TradingConfig
 import logging
 import sys
 
-# Configure only if not already configured to avoid interfering with global config
-mcp_logger = logging.getLogger("mcp")
-if not mcp_logger.handlers:
+def redirect_logger_to_stdout(logger_name):
+    logger = logging.getLogger(logger_name)
+    # Remove existing handlers to avoid duplicates or stderr handlers
+    if logger.handlers:
+        for handler in logger.handlers:
+            logger.removeHandler(handler)
+            
+    # Force stdout handler
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter('%(message)s')) # Clean format
-    mcp_logger.addHandler(handler)
-    mcp_logger.setLevel(logging.INFO)
-    mcp_logger.propagate = False # Stop bubbling up to root logger (which might use stderr)
+    handler.setFormatter(logging.Formatter('%(message)s'))
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False # Stop bubbling
+
+try:
+    # Target known loggers that might output volume to stderr
+    redirect_logger_to_stdout("mcp")
+    redirect_logger_to_stdout("mcp.client") 
+    redirect_logger_to_stdout("langchain_mcp_adapters")
+except Exception as e:
+    print(f"Log redirection warning: {e}")
 
 _mcp_client = None
 
