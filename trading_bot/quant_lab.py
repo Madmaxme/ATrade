@@ -18,36 +18,79 @@ class QuantLab:
     def get_history(self, symbol: str, days: int = 365) -> pd.DataFrame:
         """
         Fetch historical data for a symbol.
-        Uses yfinance for broad coverage. 
+        Prefer Alpaca Data for consistency with live trading.
         """
-        yf_symbol = symbol.replace('.', '-') # Ensure Yahoo format
-        
-        if yf_symbol in self.cache:
-            return self.cache[yf_symbol]
+        if symbol in self.cache:
+            return self.cache[symbol]
             
+        # Try Alpaca First
         try:
-            # Download with buffer
+            from alpaca.data.historical import StockHistoricalDataClient
+            from alpaca.data.requests import StockBarsRequest
+            from alpaca.data.timeframe import TimeFrame
+            from alpaca.data.enums import DataFeed
+            
+            api_key = self.config.alpaca_api_key
+            secret_key = self.config.alpaca_secret_key
+            
+            client = StockHistoricalDataClient(api_key, secret_key)
+            
             end_date = datetime.now()
-            start_date = end_date - timedelta(days=days + 50) # +50 for SMA warmup
+            start_date = end_date - timedelta(days=days + 50) # Buffer
+            
+            # Alpaca symbol format
+            alpaca_symbol = symbol.replace('-', '.')
+            
+            req = StockBarsRequest(
+                symbol_or_symbols=[alpaca_symbol],
+                timeframe=TimeFrame.Day,
+                start=start_date,
+                end=end_date,
+                feed=DataFeed.IEX
+            )
+            
+            bars = client.get_stock_bars(req)
+            if alpaca_symbol in bars.data:
+                data = bars.data[alpaca_symbol]
+                df = pd.DataFrame([{
+                    "open": b.open, 
+                    "high": b.high, 
+                    "low": b.low, 
+                    "close": b.close, 
+                    "volume": b.volume,
+                    "timestamp": b.timestamp
+                } for b in data])
+                
+                # Set index
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                df.set_index('timestamp', inplace=True)
+                
+                self.cache[symbol] = df
+                return df
+                
+        except Exception as e:
+            logger.warning(f"Alpaca data fetch failed for {symbol}: {e}. Falling back to Yahoo.")
+            
+        # Fallback to Yahoo Finance
+        try:
+            yf_symbol = symbol.replace('.', '-') 
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days + 50)
             
             df = yf.download(yf_symbol, start=start_date, end=end_date, progress=False, interval="1d")
             
             if df.empty:
                 return pd.DataFrame()
             
-            # Normalize columns
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.droplevel(1)
                 
-            # Rename to standard internal format
             df = df.rename(columns={
                 "Open": "open", "High": "high", "Low": "low", "Close": "close", "Volume": "volume"
             })
             
-            # Fill missing
             df = df.interpolate(method='linear')
-            
-            self.cache[yf_symbol] = df
+            self.cache[symbol] = df
             return df
             
         except Exception as e:
