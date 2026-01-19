@@ -15,30 +15,21 @@ from trading_bot.config import TradingConfig
 # MCP CLIENT SETUP
 # =============================================================================
 
-# Redirect MCP logs to stdout so Railway doesn't treat them as errors (stderr)
-import logging
+# NUCLEAR FIX: Redirect STDERR to STDOUT at the OS file descriptor level.
+# This ensures that EVERYTHING (Python logs, Subprocess logs, C libraries)
+# that writes to stderr will now go to stdout.
+# Railway will see these as INFO (White), not ERROR (Red).
 import sys
-
-def redirect_logger_to_stdout(logger_name):
-    logger = logging.getLogger(logger_name)
-    # Remove existing handlers to avoid duplicates or stderr handlers
-    if logger.handlers:
-        for handler in logger.handlers:
-            logger.removeHandler(handler)
-            
-    # Force stdout handler
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter('%(message)s'))
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
-    logger.propagate = False # Stop bubbling
+import os
 
 try:
-    # Target known loggers that might output volume to stderr
-    redirect_logger_to_stdout("mcp")
-    redirect_logger_to_stdout("mcp.client") 
-    redirect_logger_to_stdout("langchain_mcp_adapters")
+    # Only redirect if not already redirected (sanity check)
+    if sys.stderr.fileno() != sys.stdout.fileno():
+        sys.stderr.flush()
+        # Redirect fd 2 (stderr) to fd 1 (stdout)
+        os.dup2(sys.stdout.fileno(), sys.stderr.fileno())
 except Exception as e:
+    # Use print since stderr might be compromised
     print(f"Log redirection warning: {e}")
 
 _mcp_client = None
