@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_aws import ChatBedrock
+from botocore.config import Config
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, SystemMessage, ToolMessage
 
 from trading_bot.config import TradingConfig
@@ -253,7 +254,7 @@ async def account_sync_node(state: TradingState) -> dict:
         }
 
 
-async def agent_node(state: TradingState, trading_config: TradingConfig, model: ChatGoogleGenerativeAI, tools: list) -> dict:
+async def agent_node(state: TradingState, trading_config: TradingConfig, model: ChatBedrock, tools: list) -> dict:
     """
     The main trading agent - makes decisions about what to do.
     """
@@ -420,6 +421,31 @@ def _format_signals(signals: List[dict]) -> str:
     return "\n".join(lines)
 
 
+def should_run_agent(state: TradingState) -> Literal["agent", "end"]:
+    """
+    Optimization: Skip the agent (LLM call) if there's nothing to do.
+    We only run the agent if:
+    1. We just performed a scan (new info)
+    2. We have active positions (need management)
+    3. We have active signals (need decision)
+    """
+    # If we scanned, we must let the agent see the results
+    if state.get("perform_scan", False):
+        return "agent"
+        
+    # If we have positions, we must monitor them (Agent decides stops/exits)
+    if state.get("positions"):
+        return "agent"
+        
+    # If we have signals waiting for entry
+    if state.get("signals"):
+        return "agent"
+        
+    # Otherwise, we are just idling waiting for the next scan interval
+    print(f"   💤 Idle Mode: No positions or new signals. Skipping Agent to save quota.")
+    return "end"
+
+
 def should_continue(state: TradingState) -> Literal["tools", "end"]:
     """Determine if we should execute tools or end."""
     messages = state.get("messages", [])
@@ -452,9 +478,19 @@ async def create_trading_graph(config: TradingConfig, override_tools: List = Non
     """
     
     # Initialize LLM
-    model = ChatGoogleGenerativeAI(
-        model=config.llm_model,
-        temperature=config.llm_temperature,
+    # Initialize LLM with Adaptive Retries (Rate Limit Protection)
+    boto_config = Config(
+        retries={
+            'max_attempts': 10,
+            'mode': 'adaptive'
+        }
+    )
+
+    model = ChatBedrock(
+        model_id=config.llm_model,
+        region_name=config.aws_region,
+        config=boto_config, # Pass the retry configuration
+        model_kwargs={"temperature": config.llm_temperature},
     )
     
     # Get trading tools (includes MCP tools from Alpaca)
@@ -488,7 +524,16 @@ async def create_trading_graph(config: TradingConfig, override_tools: List = Non
     # Reordered: Sync -> Scanner -> Agent
     workflow.add_edge(START, "account_sync")
     workflow.add_edge("account_sync", "scanner")
-    workflow.add_edge("scanner", "agent")
+    
+    # Conditional edge: Scanner -> Agent OR End (Optimization)
+    workflow.add_conditional_edges(
+        "scanner",
+        should_run_agent,
+        {
+            "agent": "agent",
+            "end": END
+        }
+    )
     
     # Conditional edge from agent
     workflow.add_conditional_edges(

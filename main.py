@@ -38,16 +38,25 @@ async def main():
     
     print("=" * 60)
     print("  ATRADE - Autonomous Trading Agent")
-    print("  Powered by LangGraph + Alpaca MCP")
+    print("  Powered by LangGraph + AWS Bedrock + Alpaca MCP")
     print("=" * 60)
     print(f"\n  Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
     # Load configuration
     config = TradingConfig()
     
-    # Validate environment
-    if not os.getenv("GOOGLE_API_KEY"):
-        raise ValueError("GOOGLE_API_KEY not set")
+    # Validate AWS credentials (supports .env, ~/.aws/credentials, IAM roles)
+    import boto3
+    try:
+        session = boto3.Session()
+        if not session.get_credentials():
+             # If boto3 can't find them, fallback to strict error
+             if not os.getenv("AWS_ACCESS_KEY_ID"):
+                 raise ValueError("AWS Credentials not found. Please set AWS_ACCESS_KEY_ID or configure ~/.aws/credentials")
+    except Exception as e:
+         raise ValueError(f"AWS Credential validation failed: {e}")
+
+    # Check for Alpaca keys
     if not os.getenv("ALPACA_API_KEY"):
         raise ValueError("ALPACA_API_KEY not set")
     if not os.getenv("ALPACA_SECRET_KEY"):

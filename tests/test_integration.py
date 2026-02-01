@@ -16,7 +16,7 @@ from trading_bot.config import TradingConfig
 from trading_bot.scanner import scan_for_signals, Signal
 from trading_bot.graph import agent_node
 from trading_bot.tools import get_trading_tools
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_aws import ChatBedrock
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -85,9 +85,10 @@ async def run_integration_test():
     # 4. Initialize Tools & Model
     tools = await get_trading_tools(config)
     
-    model = ChatGoogleGenerativeAI(
-        model=config.llm_model,
-        temperature=0.0 # Force determinism
+    model = ChatBedrock(
+        model_id=config.llm_model,
+        region_name=config.aws_region,
+        model_kwargs={"temperature": 0.0} # Force determinism
     )
     
     # 5. Run Agent Node

@@ -57,7 +57,7 @@ A LangGraph-powered autonomous day trading agent that uses SMA crossover signals
 
 - Python 3.11+
 - Docker (optional)
-- Google API key
+- AWS API keys
 - Alpaca paper trading account
 
 ### Installation

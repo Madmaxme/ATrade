@@ -2,7 +2,7 @@
 import asyncio
 import os
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_aws import ChatBedrock
 from langchain_core.tools import tool
 
 # Load env
@@ -17,13 +17,14 @@ def multiply(a: int, b: int) -> int:
 
 async def test_llm():
     model_name = DEFAULT_CONFIG.llm_model
-    print(f"Testing model: {model_name}...")
+    region = DEFAULT_CONFIG.aws_region
+    print(f"Testing model: {model_name} in region {region}...")
     
     try:
-        llm = ChatGoogleGenerativeAI(
-            model=model_name,
-            temperature=0,
-            google_api_key=os.getenv("GOOGLE_API_KEY")
+        llm = ChatBedrock(
+            model_id=model_name,
+            region_name=region,
+            model_kwargs={"temperature": 0}
         )
         
         llm_with_tools = llm.bind_tools([multiply])

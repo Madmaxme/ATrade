@@ -161,13 +161,20 @@ class TradingConfig:
     @property
     def alpaca_secret_key(self) -> str:
         return os.getenv("ALPACA_SECRET_KEY", "")
+
+    # =========================================================================
+    # AWS SETTINGS
+    # =========================================================================
+    @property
+    def aws_region(self) -> str:
+        return os.getenv("AWS_REGION", "us-east-1")
     
     # =========================================================================
     # LLM SETTINGS
     # =========================================================================
     
     # Model to use for trading decisions
-    llm_model: str = "gemini-3-flash-preview"
+    llm_model: str = "us.anthropic.claude-opus-4-5-20251101-v1:0"
     
     # Temperature for LLM (lower = more consistent)
     llm_temperature: float = 0.1
