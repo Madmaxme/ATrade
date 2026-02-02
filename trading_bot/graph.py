@@ -90,7 +90,6 @@ class TradingState(TypedDict):
     # Error tracking
     last_error: Optional[str]
 
-    # NEW: Token Usage Tracking
     # Format: {"input": 0, "output": 0, "total": 0}
     token_usage: Optional[dict]
 
