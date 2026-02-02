@@ -317,8 +317,20 @@ Analyze the situation and decide.
         clean_history.append(msg)
     
     # Cap total history to prevent token explosion
-    if len(clean_history) > 8:
-        clean_history = clean_history[-8:]
+    # 🛡️ DEFENSIVE: Ensure we don't start history with a dangling ToolMessage
+    # Bedrock requires ToolMessages to be preceded by an AIMessage with tool_calls.
+    if len(clean_history) > 10:
+        clean_history = clean_history[-10:]
+        
+    # If the first message in our window is a ToolMessage, it's dangling. 
+    # Slide the window forward until we hit a non-tool message.
+    while clean_history and isinstance(clean_history[0], ToolMessage):
+        clean_history.pop(0)
+
+    # Secondary check: If the NEW first message is an AIMessage that was part 
+    # of a tool sequence (has no text, only tool calls), it might also be 
+    # confusing if we don't have the context. But usually, Bedrock is okay 
+    # with starting at an AI tool-call message.
     
     # NEW: Capture Optimization Data from Tool Outputs
     # (Existing logic to extract data)
@@ -362,9 +374,21 @@ Analyze the situation and decide.
     try:
         response = await model_with_tools.ainvoke(messages_input)
     except Exception as e:
-        if "ValidationException" in str(e):
-             print(f"\n   🚨 BEDROCK VALIDATION ERROR (Surgical Fix Failed): {e}")
-        raise e
+        # If we still fail, try one last time with ONLY the core context (extreme pruning)
+        if "ValidationException" in str(e) and len(messages_input) > 2:
+            print("   ⚠️  Validation failure detected. Pruning history for emergency recovery...")
+            # We take System [0] and Human [1] which are the FRESH context
+            emergency_messages = [messages_input[0], messages_input[1]]
+            
+            # If the last message was a regular AI message (no tool calls), we can include it
+            # But we must be careful not to include a dangling ToolMessage
+            last_msg = messages_input[-1]
+            if isinstance(last_msg, AIMessage) and not last_msg.tool_calls:
+                emergency_messages.append(last_msg)
+            
+            response = await model_with_tools.ainvoke(emergency_messages)
+        else:
+            raise e
 
 
     # Debug logging for user transparency
