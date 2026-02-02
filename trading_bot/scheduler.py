@@ -138,7 +138,9 @@ class TradingScheduler:
             "perform_scan": True,  # Always scan on startup
             "current_action": None,
             "agent_narrative": None,
+            "agent_narrative": None,
             "optimization_history": {},
+            "token_usage": {"input": 0, "output": 0, "total": 0},
             "last_error": None,
         }
         
@@ -254,6 +256,16 @@ TRADES EXECUTED:"""
                     price = float(o.filled_avg_price) if o.filled_avg_price else 0
                     qty = o.qty
                     report += f"\n- {o.filled_at.strftime('%H:%M')} {side} {o.symbol}: {qty} shares @ ${price:.2f}"
+
+            # Add Token Usage to Report
+            # Opus 4.5 Pricing: $15/1M Input, $75/1M Output
+            if final_state and "token_usage" in final_state:
+                usage = final_state.get("token_usage", {})
+                in_tok = usage.get("input", 0)
+                out_tok = usage.get("output", 0)
+                
+                cost = (in_tok / 1_000_000 * 15.00) + (out_tok / 1_000_000 * 75.00)
+                report += f"\n\nTOKENS: {in_tok+out_tok:,} (In: {in_tok:,}, Out: {out_tok:,}) | EST. COST: ${cost:.2f}"
 
             report += "\n\nNOTES:\n(Auto-generated)\n================================================================================\n\n"
             

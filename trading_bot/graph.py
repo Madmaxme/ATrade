@@ -90,6 +90,10 @@ class TradingState(TypedDict):
     # Error tracking
     last_error: Optional[str]
 
+    # NEW: Token Usage Tracking
+    # Format: {"input": 0, "output": 0, "total": 0}
+    token_usage: Optional[dict]
+
 
 # =============================================================================
 # NODE FUNCTIONS
@@ -427,12 +431,26 @@ Analyze the situation and decide.
         # logic to handle repetitive log calls if needed in future
         pass
 
+    # NEW: Capture Token Usage
+    usage = response.response_metadata.get("usage", {})
+    input_tokens = usage.get("input_tokens", 0)
+    output_tokens = usage.get("output_tokens", 0)
+    
+    # Update state usage
+    current_usage = state.get("token_usage", {}) or {"input": 0, "output": 0, "total": 0}
+    new_usage = {
+        "input": current_usage.get("input", 0) + input_tokens,
+        "output": current_usage.get("output", 0) + output_tokens,
+        "total": current_usage.get("total", 0) + input_tokens + output_tokens
+    }
+
     # Return both the fresh context update and the AI response
     return {
         "messages": [HumanMessage(content=context), response],
         "current_action": "agent_decided",
         "agent_narrative": t_clean[:500] if t_clean else state.get("agent_narrative"),
-        "optimization_history": opt_history # Persist updated history
+        "optimization_history": opt_history, # Persist updated history
+        "token_usage": new_usage # Persist updated usage
     }
 
 
