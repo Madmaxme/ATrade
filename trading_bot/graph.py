@@ -345,7 +345,42 @@ Analyze the situation and decide.
     # Append the recent tool interaction history
     messages_input.extend(clean_history)
     
-    response = await model_with_tools.ainvoke(messages_input)
+    # 🛡️ DIAGNOSTIC LOGGING: Investigate Bedrock Validation Errors
+    # instead of nuclear cleaning, we log the structure to see where "text.id" comes from.
+    print(f"\n   🔍 Bedrock Diagnostic: Preparing {len(messages_input)} messages...")
+    
+    for i, msg in enumerate(messages_input):
+        print(f"   [{i}] Type: {msg.type}")
+        if hasattr(msg, "id") and msg.id:
+            print(f"       !!! msg.id detected: {msg.id}")
+        
+        if msg.type == "tool":
+            # Bedrock is complaining about index 2 specifically in your last run
+            print(f"       Tool Name: {getattr(msg, 'name', 'N/A')}")
+            # Check for nested ID in content if it's a list (common for MCP)
+            if isinstance(msg.content, list):
+                for j, block in enumerate(msg.content):
+                    if isinstance(block, dict) and 'id' in block:
+                         print(f"       !!! Block {j} has id: {block['id']}")
+                    if isinstance(block, dict) and 'text' in block and isinstance(block['text'], dict) and 'id' in block['text']:
+                         print(f"       !!! Block {j} nested text.id detected!")
+
+    # For now, we do a MINIMAL fix (only stringifying content) to keep it running
+    # but we allow the 'id' fields through so we can catch them in the logs above.
+    final_messages = []
+    for msg in messages_input:
+        m = msg.copy()
+        # If content is a complex object (like from MCP), stringify it
+        # as Bedrock requires tool results to be basically strings or specific blocks.
+        if m.type == "tool" and not isinstance(m.content, str):
+            import json
+            try:
+                m.content = json.dumps(m.content)
+            except:
+                m.content = str(m.content)
+        final_messages.append(m)
+
+    response = await model_with_tools.ainvoke(final_messages)
 
 
     # Debug logging for user transparency
